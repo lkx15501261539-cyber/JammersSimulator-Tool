@@ -5,16 +5,20 @@ import json
 from pathlib import Path
 from .world import ScenarioConfig, SCENARIOS
 from .strategy import DEFAULT_Q1
+from .baseline import MODEL_LABELS
 
 
 def main():
     parser = argparse.ArgumentParser(description='Enhanced Jammers simulation / desktop replay')
-    parser.add_argument('mode', choices=['gui', 'demo', 'baseline', 'batch', 'serve'])
+    parser.add_argument('mode', choices=['gui', 'demo', 'baseline', 'q4', 'batch', 'serve'])
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--problem', type=int, choices=[3, 4], default=3,
+                        help='Problem number; Q4 enables mixed directional/omnidirectional sources')
     parser.add_argument('--scenario', choices=SCENARIOS, default='uniform')
     parser.add_argument('--error-model', choices=['deterministic_hash_fixed', 'worst_edge', 'baseline_fixed_field'],
                         help='Defaults to baseline_fixed_field for gui/baseline, deterministic_hash_fixed otherwise')
-    parser.add_argument('--model', choices=['hexagon_v1', 'spiral_v1'], default='hexagon_v1')
+    parser.add_argument('--model', choices=[*MODEL_LABELS, 'q4_cu'],
+                        help='Defaults to q4_cu for problem 4, hexagon_v1 otherwise')
     parser.add_argument('--archive', type=Path)
     parser.add_argument('--q1', type=Path, default=DEFAULT_Q1)
     parser.add_argument('--output', type=Path)
@@ -22,16 +26,29 @@ def main():
     parser.add_argument('--seeds', default='42,43,44')
     parser.add_argument('--port', type=int, default=2027)
     args = parser.parse_args()
+    if args.mode == 'q4' or args.model == 'q4_cu':
+        args.problem = 4
+    if args.problem == 4 and args.model in MODEL_LABELS and args.mode != 'serve':
+        parser.error('Problem 4 requires --model q4_cu; the ZIP baseline models are Q3 only')
+    if args.problem == 4 and args.mode in ('demo', 'batch'):
+        parser.error('For Q4 use gui, q4, baseline --model q4_cu, or serve')
+    args.model = args.model or ('q4_cu' if args.problem == 4 else 'hexagon_v1')
     if args.error_model is None:
         args.error_model = 'baseline_fixed_field' if args.mode in ('gui', 'baseline') else 'deterministic_hash_fixed'
-    config = ScenarioConfig(seed=args.seed, scenario=args.scenario, error_model=args.error_model)
+    config = ScenarioConfig(seed=args.seed, scenario=args.scenario, error_model=args.error_model,
+                            problem=args.problem)
     output = args.output or Path('runs')/datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     if args.mode == 'gui':
         from .ui import launch
         launch(config, args.q1, args.replay, args.model, args.archive)
+    elif args.mode == 'q4' or args.mode == 'baseline' and args.model == 'q4_cu':
+        from .q4_adapter import run_q4
+        run = run_q4(config, output,
+                     progress=lambda p: print(f"{p['phase']} | {p['action_count']} actions | {p['virtual_time_s']:.1f} s", flush=True))
+        print(run['metadata'])
     elif args.mode == 'baseline':
         from .baseline import run_baseline, default_archive
-        run = run_baseline(config, args.archive or default_archive(), args.model, output,
+        run = run_baseline(config, args.archive or default_archive(args.model), args.model, output,
                            progress=lambda p: print(f"{p['phase']} | {p['action_count']} actions | {p['virtual_time_s']:.1f} s", flush=True))
         print(run['metadata'])
     elif args.mode == 'serve':

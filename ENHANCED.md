@@ -1,7 +1,7 @@
 # Jammers Lab — enhanced testing and continuous desktop animation
 
 This platform adds an observer-only PySide6 desktop application, reproducible mock,
-unchanged Baseline 1.0 execution, Q1 integration demo and saved event replay without
+unchanged Baseline 1.0 / 2.0 execution, Q1 integration demo and saved event replay without
 changing the original CLI/MCP. The Q1 demo calls the adjacent
 `CUMCM-2026/code/第一问.py::localize(measurements)` without editing that model or any
 paper content. Baseline runs use the original Q1 file inside the supplied model ZIP.
@@ -12,6 +12,22 @@ for assumptions, rounding boundaries, and incomplete official behavior.
 
 A saved demonstration is included: `python -m enhanced gui --replay examples/enhanced-demo`.
 This replay works without the adjacent Q1 repository.
+
+## Q3 七点六边形 Baseline 2.0
+
+在模型菜单选择 **七点六边形 · Baseline 2.0**，对应 ZIP 自动切换为本仓库自带的
+`models/Baseline_v2.0_七点六边形.zip`。原始源码、配置和交付校验表保持不变；
+保留 v1.0 六边形、v1.0 螺旋及 Q4 的独立入口。
+
+```sh
+python -m pip install -r requirements-q3-v2.txt
+python -m enhanced gui --model hexagon_v2
+python -m enhanced baseline --model hexagon_v2 --seed 47 --scenario clustered --output runs/v2-47
+python -m enhanced gui --replay runs/v2-47
+```
+
+Windows 双击 `start_q3_v2.bat`。[接入与验证说明](docs/BASELINE_V2_INTEGRATION.md)
+解释 C/U、真实任务队列和原模型一致性；[启动说明](docs/MODEL_LAUNCHERS.md) 列出依赖及平台范围。
 
 ## Baseline 1.0 原代码模拟
 
@@ -229,3 +245,12 @@ For a live official simulator, the original `SimulatorClient` satisfies the same
 public method interface. Drive the strategy generator with that client; separate
 logging/observer wiring is needed for official responses. The enhanced `World` and
 Qt view do not need modification to evaluate a new policy through the runner.
+# Q4 REST 演练补充
+
+`python3 -m enhanced serve --problem 4 --seed 47 --error-model worst_edge --port 2027 --output runs/q4-47`
+
+新增 `--problem 4` 生成可复现的全向/定向混合场景，定向源的发射朝向固定但对客户端不可见。默认 `--problem 3` 保持原场景与接口兼容。Q4 可使用 `python3 -m enhanced gui --problem 4` 直接打开界面，选择“第四问 · 25 点 C/U”并开始模拟；也可使用 serve + 本仓库 `model_sources/q4/q4.py` 客户端。模型来源见 `model_sources/q4/README.md`，启动方式见 `docs/MODEL_LAUNCHERS.md`。
+
+定向源在 180° 闭半平面及接收半径内返回 direction/near；背面即使很近也可 no_signal。与源完全重合时零向量在所有闭半平面内。20 m 光学清除与朝向无关，clear 不改变无线电频道。
+
+Windows Q4：在本仓库双击 `start_q4.bat`；下载本分支即可使用自带的 Q4 运行源码。首次需要已安装 64 位 Python 3.10+ 并联网准备 PySide6。Q4 模式隐藏旧 Baseline ZIP 控件，Q3 模式保留；Windows 启动脚本仅做过静态检查，未在本次 macOS 主机上运行。

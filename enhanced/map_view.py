@@ -45,6 +45,21 @@ def rounded(p,rect,fill,border='#d4e0e6',radius=12):
     p.setPen(pen(border));p.setBrush(QColor(fill));p.drawRoundedRect(rect,radius,radius)
 
 
+def source_heading(orientation):
+    """Source-to-receiver heading in screen coordinates: east 0°, north 90°."""
+    angle=math.radians(float(orientation)%360)
+    return QPointF(math.cos(angle),-math.sin(angle))
+
+
+def directional_range_path(center,radius,orientation):
+    """The forward 180° reception sector, using Qt's counterclockwise arcs."""
+    path=QPainterPath(center)
+    rect=QRectF(center.x()-radius,center.y()-radius,2*radius,2*radius)
+    path.arcTo(rect,float(orientation)%360-90,180)
+    path.closeSubpath()
+    return path
+
+
 class MapView(QGraphicsView):
     zoom_changed=Signal(float)
     follow_changed=Signal(bool)
@@ -388,11 +403,17 @@ class MapView(QGraphicsView):
     def _sources(self,p):
         s=self.state;scale=abs(self.transform().m11())
         for source in self.sources:
+            # Reception areas, source types and orientations are all truth.
+            # The independent radii toggle must not reveal a hidden source.
+            if not self.truth:continue
             center=self.point((source['x'],source['y']));ch=source['channel']
             status=source_status(s,ch);color=SOURCE_COLORS[status];cleared=status=='cleared'
+            directional=source.get('source_type')=='directional'
             if self.radii:
                 radius=source['recv_radius']*scale;outline=QColor(color);outline.setAlpha(40)
-                p.setBrush(Qt.BrushStyle.NoBrush);p.setPen(pen(outline,1,Qt.PenStyle.DashLine));p.drawEllipse(center,radius,radius)
+                p.setBrush(Qt.BrushStyle.NoBrush);p.setPen(pen(outline,1,Qt.PenStyle.DashLine))
+                if directional:p.drawPath(directional_range_path(center,radius,source['orientation']))
+                else:p.drawEllipse(center,radius,radius)
             if self.truth:
                 # A breathing halo identifies the actual selected task without
                 # displacing the source's ground anchor or changing playback.
@@ -407,8 +428,16 @@ class MapView(QGraphicsView):
                 p.drawEllipse(center,12 if self.follow_robot else 9,6 if self.follow_robot else 5)
                 paint_beacon(p,center,ch,cleared,pulse=s['time']*.8,
                              scale=.68 if not self.follow_robot else .9,status=status)
+                if directional:
+                    heading=source_heading(source['orientation']);normal=QPointF(-heading.y(),heading.x())
+                    tip=center+heading*(35 if self.follow_robot else 29)
+                    p.setPen(pen(color,1.8));p.setBrush(Qt.BrushStyle.NoBrush)
+                    p.drawLine(center+heading*12,tip)
+                    p.drawLine(tip,tip-heading*7+normal*4)
+                    p.drawLine(tip,tip-heading*7-normal*4)
                 if self.show_annotations or ch==s['channel'] or status=='target':
                     label=f'CH {ch:02}'+(' · 目标' if status=='target' else '')
+                    if directional:label+=f" · 定向 {source['orientation']%360:.0f}°"
                     text(p,center.x()+13,center.y()-12,label,9,color,status=='target')
         # Clear radius and outcome are observational events, independent of truth toggle.
         for clear in s['clear_actions']:

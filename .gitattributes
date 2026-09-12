@@ -1,0 +1,2 @@
+# Preserve Windows launcher CRLF in downloaded source archives.
+*.bat -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

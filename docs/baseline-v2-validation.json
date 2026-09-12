@@ -1,0 +1,68 @@
+{
+  "date": "2026-09-12",
+  "platform": "macOS arm64, Python 3.12",
+  "model": "hexagon_v2",
+  "archive_sha256": "24a8d60fc64dcb22fd1bfa0d7629d3782465d003d0a28ea64a64cfb4f502eae4",
+  "manifest_files_verified": 105,
+  "original_tests": 46,
+  "simulator_tests": 174,
+  "q4_core_tests": 18,
+  "http_note": "One sandbox bind denial; passed on local-listener retry.",
+  "route_certificate": {
+    "certified": true,
+    "unresolved": 0,
+    "cells": 165,
+    "covered": 76,
+    "outside": 48,
+    "arithmetic": "exact Python integers, actual millimetre stop coordinates"
+  },
+  "scenarios": [
+    {
+      "scenario": "uniform",
+      "seed": 42,
+      "error_model": "baseline_fixed_field",
+      "cleared": 15,
+      "source_count": 15,
+      "virtual_time_s": 4980.878255606835,
+      "distance_m": 21699.391278034178,
+      "measure_count": 75,
+      "switch_count": 74,
+      "failed_clear_count": 39,
+      "completion": "completed",
+      "model_files_unchanged": true,
+      "metrics_reconciled": true
+    },
+    {
+      "scenario": "clustered",
+      "seed": 47,
+      "error_model": "baseline_fixed_field",
+      "cleared": 12,
+      "source_count": 12,
+      "virtual_time_s": 4541.514792298311,
+      "distance_m": 19382.573961491555,
+      "measure_count": 90,
+      "switch_count": 86,
+      "failed_clear_count": 23,
+      "completion": "completed",
+      "model_files_unchanged": true,
+      "metrics_reconciled": true
+    },
+    {
+      "scenario": "boundary-biased",
+      "seed": 48,
+      "error_model": "baseline_fixed_field",
+      "cleared": 14,
+      "source_count": 14,
+      "virtual_time_s": 4949.900692773407,
+      "distance_m": 18664.503463867062,
+      "measure_count": 94,
+      "switch_count": 89,
+      "failed_clear_count": 196,
+      "completion": "completed",
+      "model_files_unchanged": true,
+      "metrics_reconciled": true
+    }
+  ],
+  "official_simulator_tested": false,
+  "windows_executed": false
+}

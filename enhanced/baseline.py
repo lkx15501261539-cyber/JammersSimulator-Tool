@@ -1,4 +1,4 @@
-"""Unmodified Baseline v1 ZIP importer and process-isolated simulation bridge."""
+"""Verified, unmodified Baseline ZIPs and a process-isolated simulation bridge."""
 from dataclasses import asdict
 import hashlib
 import json
@@ -15,15 +15,21 @@ from .runner import save_run
 from .strategy import load_q1, localization_data
 
 MODEL_LABELS = {'hexagon_v1': '六边形 7 点 · Baseline 1.0',
-                'spiral_v1': '螺旋 12 点 · Baseline 1.0'}
+                'spiral_v1': '螺旋 12 点 · Baseline 1.0',
+                'hexagon_v2': '七点六边形 · Baseline 2.0'}
 ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE_NAME = 'Baseline_v1.0_两模型完整交付.zip'
+V2_ARCHIVE_NAME = 'Baseline_v2.0_七点六边形.zip'
 CACHE = ROOT / '.cache' / 'baselines'
 
 
-def default_archive():
-    candidates = [Path(os.environ.get('BASELINE_ARCHIVE', ROOT/'models'/ARCHIVE_NAME)),
-                  Path.home()/'Downloads'/ARCHIVE_NAME]
+def default_archive(model='hexagon_v1'):
+    if model not in MODEL_LABELS:
+        raise ValueError('Unknown baseline model')
+    name = V2_ARCHIVE_NAME if model == 'hexagon_v2' else ARCHIVE_NAME
+    env_key = 'BASELINE_V2_ARCHIVE' if model == 'hexagon_v2' else 'BASELINE_ARCHIVE'
+    candidates = [Path(os.environ.get(env_key, ROOT/'models'/name)),
+                  Path.home()/'Downloads'/name]
     return next((p for p in candidates if p.is_file()), candidates[0])
 
 
@@ -34,19 +40,24 @@ def prepare_model(archive, model):
     archive = Path(archive)
     archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
     directory = CACHE/archive_hash/model
+    prefix = 'Baseline_v2.0_七点六边形' if model == 'hexagon_v2' else model
     with zipfile.ZipFile(archive) as z:
-        manifest = json.loads(z.read(f'{model}/SHA256SUMS.json'))
+        manifest = json.loads(z.read(f'{prefix}/SHA256SUMS.json'))
         for name, expected in manifest.items():
             path = PurePosixPath(name)
             if path.is_absolute() or '..' in path.parts:
                 raise ValueError('Invalid archive path')
-            if hashlib.sha256(z.read(f'{model}/{name}')).hexdigest() != expected:
-                raise ValueError(f'Original model checksum mismatch: {model}/{name}')
+            if hashlib.sha256(z.read(f'{prefix}/{name}')).hexdigest() != expected:
+                raise ValueError(f'Original model checksum mismatch: {prefix}/{name}')
         runtime = ['run.py','solver.py','第一问.py','config.json','VERSION.json','requirements.txt','LICENSE']
+        if model == 'hexagon_v2':
+            runtime += ['baseline_runtime.py', 'cu.py', 'routing.py', 'requirements-lock.txt']
         directory.mkdir(parents=True, exist_ok=True)
         hashes = {}
         for name in runtime:
-            data = z.read(f'{model}/{name}')
+            if name not in manifest:
+                raise ValueError(f'Runtime file missing from checksum manifest: {prefix}/{name}')
+            data = z.read(f'{prefix}/{name}')
             dest = directory/name
             if dest.exists() and dest.read_bytes() != data:
                 raise ValueError(f'Cached baseline changed: {dest}. Select an intact archive/cache.')
@@ -77,7 +88,8 @@ def run_baseline(config: ScenarioConfig, archive, model, output, progress=None, 
     world = World(config)
     localize = load_q1(directory/'第一问.py')
     metadata = dict(schema_version=1, **asdict(config), strategy=MODEL_LABELS[model],
-                    strategy_version='baseline-v1.0', baseline_model=model, strategy_observer_schema=1, **provenance,
+                    strategy_version='baseline-v2.0' if model == 'hexagon_v2' else 'baseline-v1.0',
+                    baseline_model=model, strategy_observer_schema=1, **provenance,
                     q1_sha256=provenance['model_files_sha256']['第一问.py'])
     env = os.environ.copy()
     cache = CACHE/'runtime-cache'; cache.mkdir(parents=True,exist_ok=True)

@@ -18,6 +18,12 @@ from .map_view import MapView, action_range
 from .playback import advance_playback
 from .mission_panel import MissionPanel
 from .localization_view import LocalizationView
+from .baseline import MODEL_LABELS, default_archive
+
+
+def archive_family(model):
+    """Both original v1 models share one archive; v2 has its own package."""
+    return 'hexagon_v2' if model == 'hexagon_v2' else 'hexagon_v1'
 
 
 class SimulationWorker(QThread):
@@ -35,6 +41,11 @@ class SimulationWorker(QThread):
             if self.model == 'q1_demo':
                 from .runner import simulate
                 run = simulate(self.config,directory,self.q1)
+            elif self.model == 'q4_cu':
+                from .q4_adapter import run_q4
+                run = run_q4(replace(self.config,problem=4),directory,
+                             progress=self.progress.emit,
+                             cancelled=self.isInterruptionRequested)
             else:
                 from .baseline import run_baseline
                 run = run_baseline(self.config,self.archive,self.model,directory,
@@ -51,7 +62,6 @@ class SimulationWorker(QThread):
 class Window(QMainWindow):
     def __init__(self, config, q1, replay=None):
         super().__init__()
-        from .baseline import MODEL_LABELS, default_archive
         self.q1, self.run_data, self.t, self.playing, self.worker = q1,None,0.,False,None
         self.config, self._close_when_finished = config,False
         self.setWindowTitle('Jammers Lab · Baseline 1.0 探索仿真')
@@ -66,17 +76,23 @@ class Window(QMainWindow):
         model_row = QHBoxLayout()
         self.model = QComboBox()
         for key,label in MODEL_LABELS.items(): self.model.addItem(label,key)
+        self.model.addItem('第四问 · 25 点 C/U','q4_cu')
         self.model.addItem('Q1 Integration Demo · 单目标验证','q1_demo')
-        self.model.setCurrentIndex(max(0,self.model.findData('hexagon_v1')))
+        self.model.setCurrentIndex(max(0,self.model.findData('q4_cu' if config.problem == 4 else 'hexagon_v1')))
         self.model.setMinimumWidth(265)
         self.archive = QLineEdit(str(default_archive()))
-        self.archive.setPlaceholderText('选择 Baseline 1.0 两模型完整交付.zip')
+        self._archive_family = 'hexagon_v1'
+        self._archive_paths = {}
+        self.archive.setPlaceholderText('选择当前模型的交付 ZIP')
         self.archive.setToolTip('直接读取交付压缩包，在独立目录运行模型原代码。')
         self.browse_archive = QPushButton('选择文件…')
         self.browse_archive.clicked.connect(self.select_archive)
+        self.archive_label = QLabel('交付压缩包')
+        self.current_model_label = QLabel()
         model_row.addWidget(QLabel('模型')); model_row.addWidget(self.model)
-        model_row.addWidget(QLabel('交付压缩包')); model_row.addWidget(self.archive,1)
+        model_row.addWidget(self.archive_label); model_row.addWidget(self.archive,1)
         model_row.addWidget(self.browse_archive)
+        model_row.addWidget(self.current_model_label,1)
         layout.addLayout(model_row)
         top = QHBoxLayout()
         self.scenario = QComboBox(); self.scenario.addItems(SCENARIOS); self.scenario.setCurrentText(config.scenario)
@@ -218,8 +234,25 @@ class Window(QMainWindow):
             if self.grab().save(path):self.statusBar().showMessage(f'画面已保存：{path}')
             else:self.show_error('无法保存到此位置。')
     def update_model_controls(self,*args):
-        baseline = self.model.currentData() != 'q1_demo'
+        model = self.model.currentData()
+        baseline = model in MODEL_LABELS
+        if baseline:
+            family = archive_family(model)
+            if family != self._archive_family:
+                self._archive_paths[self._archive_family] = self.archive.text()
+                self.archive.setText(self._archive_paths.get(family,str(default_archive(model))))
+                self._archive_family = family
+            self.archive.setPlaceholderText(f'选择 {MODEL_LABELS[model]} 的交付 ZIP')
+        self.config = replace(self.config,problem=4 if model == 'q4_cu' else 3)
+        self.setWindowTitle('Jammers Lab · 第四问 Q4 · 25 点 C/U' if model == 'q4_cu' else
+                            'Jammers Lab · Q1 单目标验证' if model == 'q1_demo' else
+                            f'Jammers Lab · 第三问 Q3 · {MODEL_LABELS.get(model,model)}')
         busy = self.worker is not None and self.worker.isRunning()
+        for widget in (self.archive_label,self.archive,self.browse_archive):
+            widget.setVisible(baseline)
+        self.current_model_label.setText('当前模型：第四问 · 25 点 C/U' if model == 'q4_cu' else
+                                         '当前模型：Q1 单目标验证')
+        self.current_model_label.setVisible(not baseline)
         self.archive.setEnabled(baseline and not busy)
         self.browse_archive.setEnabled(baseline and not busy)
         self.update_note()
@@ -228,11 +261,16 @@ class Window(QMainWindow):
         if self.run_data is not None:return
         state=project([],0)
         model=self.model.currentData()
-        if model in ('hexagon_v1','spiral_v1'):
+        if model == 'q4_cu':
+            from .q4_adapter import search_points
+            state['route_points']=[dict(index=i,position=list(point),visited=False)
+                                   for i,point in enumerate(search_points())]
+        elif model in MODEL_LABELS:
             try:
                 import json,zipfile
                 with zipfile.ZipFile(Path(self.archive.text()).expanduser()) as archive:
-                    config=json.loads(archive.read(model+'/config.json'))
+                    prefix='Baseline_v2.0_七点六边形' if model == 'hexagon_v2' else model
+                    config=json.loads(archive.read(prefix+'/config.json'))
                 state['route_points']=[dict(index=i,position=point,visited=False) for i,point in enumerate(config['points'])]
             except (OSError,ValueError,KeyError,zipfile.BadZipFile):pass
         self.map.draw(state,[],False,False)
@@ -240,11 +278,20 @@ class Window(QMainWindow):
     def update_note(self):
         metadata = self.run_data['metadata'] if self.run_data else {}
         outcome = metadata.get('completion',metadata.get('outcome'))
-        is_q1 = ('q1' in str(metadata.get('strategy','')).lower()
-                 if metadata else self.model.currentData() == 'q1_demo')
-        text = ('Q1 演示仅验证观测 → 定位 → 清除接口。\n不代表完整第三问探索策略。' if is_q1 else
+        model = self.model.currentData()
+        text = ('第四问 Q4：25 点确定性搜索 + C/U 源任务调度。\n'
+                '混合全向源与定向源；定向背面可能无信号。\n'
+                '后续测向 no_signal → 保存的 U 光学后备，覆盖 F；20 m 内清除。\n'
+                '点击“开始模拟”运行本机 Q4 控制器，无需 Baseline ZIP。' if model == 'q4_cu' else
+                'Q1 演示仅验证观测 → 定位 → 清除接口。\n不代表完整第三问探索策略。' if model == 'q1_demo' else
+                'Baseline 2.0：七点六边形，极径 1200 m。\n'
+                'C/U 选择测向或认证光学收尾，每源最多追加 3 次测向。\n'
+                '最小增量插入 + 两轮任务 2-opt；原始交付代码独立运行。' if model == 'hexagon_v2' else
                 'Baseline 1.0：保持交付代码原样运行。\n先计算完整任务，再连续播放日志。\n'
                 '图中紫色为 Q1 直径圆；策略清除使用原模型最小包围圆。')
+        if metadata:
+            replay_q4 = metadata.get('problem') == 4 or metadata.get('model') == 'q4_cu'
+            text += '\n当前回放：'+('第四问 Q4 · 25 点 C/U' if replay_q4 else str(metadata.get('strategy','已保存任务')))
         if outcome == 'incomplete_unresolved':
             text += '\n本局模型已结束，仍有目标未解决。'
             if metadata.get('unresolved_channels'):
@@ -253,12 +300,12 @@ class Window(QMainWindow):
             text += '\n本日志为中途停止的部分任务。'
         self.note.setText(text+'\n触控板双指平移、捏合缩放；也可使用 + / − 和缩放条。')
     def select_archive(self):
-        path,_ = QFileDialog.getOpenFileName(self,'选择 Baseline 1.0 模型交付包',self.archive.text(),
+        path,_ = QFileDialog.getOpenFileName(self,f'选择 {self.model.currentText()} 交付包',self.archive.text(),
                                              'ZIP 压缩包 (*.zip);;所有文件 (*)')
         if path:self.archive.setText(path);self.preview_route()
     def set_busy(self,busy):
         for widget in (self.new,self.model,self.scenario,self.seed,self.error,self.open_button): widget.setEnabled(not busy)
-        baseline = self.model.currentData() != 'q1_demo'
+        baseline = self.model.currentData() in MODEL_LABELS
         self.archive.setEnabled(baseline and not busy)
         self.browse_archive.setEnabled(baseline and not busy)
         self.cancel.setEnabled(busy)
@@ -269,14 +316,16 @@ class Window(QMainWindow):
         if self.worker is not None and self.worker.isRunning(): return
         model = self.model.currentData()
         archive = Path(self.archive.text()).expanduser()
-        if model != 'q1_demo' and not archive.is_file():
-            self.show_error('找不到模型交付压缩包，请先选择 Baseline 1.0 的 ZIP 文件。')
+        if model in MODEL_LABELS and not archive.is_file():
+            self.show_error(f'找不到模型交付压缩包，请选择 {MODEL_LABELS[model]} 的 ZIP 文件。')
             return
         self.playing=False; self.play.setText('▶ 播放')
-        self.progress_label.setText('正在启动原始模型，计算完成后自动播放。复杂场景可能需要数分钟。')
+        self.progress_label.setText('正在启动第四问 Q4 控制器，计算完成后自动播放。' if model == 'q4_cu' else
+                                    '正在启动原始模型，计算完成后自动播放。复杂场景可能需要数分钟。')
         self.statusBar().showMessage(f'正在计算：{self.model.currentText()} · seed {self.seed.value()}')
         self.worker = SimulationWorker(replace(self.config,seed=self.seed.value(),scenario=self.scenario.currentText(),
-                                               error_model=self.error.currentText()), self.q1,model,archive,self)
+                                               error_model=self.error.currentText(),problem=4 if model == 'q4_cu' else 3),
+                                       self.q1,model,archive,self)
         self.worker.completed.connect(self.simulation_completed)
         self.worker.failed.connect(self.show_error)
         self.worker.progress.connect(self.show_progress)
@@ -286,7 +335,7 @@ class Window(QMainWindow):
         self.worker.start()
     def show_progress(self,progress):
         if not self.worker or self.worker.isInterruptionRequested(): return
-        phases = {'starting':'正在启动模型','running':'正在执行原始模型','saving':'正在保存日志',
+        phases = {'starting':'正在启动模型','running':'正在执行模型','q4_running':'正在运行第四问','saving':'正在保存日志',
                   'extracting':'正在校验交付包','localizing':'正在计算定位区域',
                   'preparing':'正在准备模型','complete':'计算完成'}
         phase = progress.get('phase','running')
@@ -329,7 +378,8 @@ class Window(QMainWindow):
             if run['metadata'].get(key):control.setCurrentText(run['metadata'][key])
         if 'seed' in run['metadata']:self.seed.setValue(run['metadata']['seed'])
         self.play.setText('▶ 播放')
-        model=run['metadata'].get('baseline_model')
+        model=('q4_cu' if run['metadata'].get('problem') == 4 or run['metadata'].get('model') == 'q4_cu'
+               else run['metadata'].get('baseline_model'))
         if model is None and 'q1' in str(run['metadata'].get('strategy','')).lower(): model='q1_demo'
         index=self.model.findData(model) if model is not None else -1
         if index>=0: self.model.setCurrentIndex(index)
@@ -426,6 +476,7 @@ def launch(config,q1,replay=None,model=None,archive=None):
     window = Window(config,q1,replay)
     if model is not None and replay is None:
         window.model.setCurrentIndex(window.model.findData(model))
-    if archive is not None:window.archive.setText(str(archive))
+    if archive is not None:
+        window.archive.setText(str(archive));window.preview_route()
     window.show()
     app.exec()

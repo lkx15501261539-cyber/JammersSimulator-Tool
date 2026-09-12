@@ -1,3 +1,7 @@
+> **本分支模型模拟入口：** Q3 七点六边形 **Baseline 2.0**、Q3 两个 v1.0 模型及 Q4 **25 点 C/U**。v2.0 原始交付 ZIP 与 Q4 运行源码随本分支提供。Windows 双击 `start_q3_v2.bat` / `start_q4.bat`；其他平台见 [模型安装与启动](docs/MODEL_LAUNCHERS.md) 和 [v2.0 接入说明](docs/BASELINE_V2_INTEGRATION.md)。
+>
+> 此 fork 的 `enhanced-mock` 分支包含用户授权加入的数学模型及自建模拟验证；下方原始 CLI/MCP 项目介绍中的“通用驱动”范围不适用于这些新增模型。自建模拟结果不代表官方演练结果。
+
 > **Enhanced desktop platform:** continuous PySide6 animation, reproducible fixed-error mock, Q1 integration and Replay are available on `enhanced-mock`. See [ENHANCED.md](ENHANCED.md) for setup and [COMPATIBILITY.md](COMPATIBILITY.md) for scope.
 
 <div align="center">

@@ -3,7 +3,35 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import time
 import traceback
+
+
+def execute_model(module, config, output, backend, robot_id='BASELINE-SIM'):
+    """Use each package's public controller; v2 has no injectable run_case backend.
+
+    The v2 run_case entry constructs its own OfflineBackend, so the bridge
+    instantiates precisely the same JournalClient and Controller with the pipe.
+    In particular baseline_runtime.execute must not be used: it runs v1 policy.
+    """
+    if config.get('version') != 'baseline-v2.0':
+        return module.execute(config, output, backend, robot_id=robot_id, live=False)
+    client = module.JournalClient(backend, output, robot_id, config, live=False)
+    controller = module.Controller(client, config)
+    started = time.monotonic()
+    error = None
+    try:
+        result = controller.run()
+    except Exception as exc:
+        error = f'{type(exc).__name__}: {exc}'
+        result = controller.summary()
+        result['error'] = error
+    finally:
+        module.save_json(Path(output)/'decisions.json', controller.events)
+        client.close()
+    result['wall_runtime_s'] = time.monotonic()-started
+    module.save_json(Path(output)/'summary.json', result)
+    return result, error
 
 
 def main():
@@ -32,10 +60,13 @@ def main():
         config = json.loads((model_dir/'config.json').read_text(encoding='utf-8'))
         send(dict(kind='phase', phase='预热原模型计算模块'))
         module.warmup()
+        if config.get('version') == 'baseline-v2.0':
+            # Match v2 main: certify the complete response grid before /enter.
+            module.prepare_geometry(config)
         send(dict(kind='phase', phase='执行原模型路线与测点规划'))
         from .strategy_observer import observe_controller
         with observe_controller(module, lambda data: send(dict(kind='strategy_state', data=data))) as observer:
-            result, error = module.execute(config, output, PipeBackend(), robot_id='BASELINE-SIM', live=False)
+            result, error = execute_model(module, config, output, PipeBackend())
         send(dict(kind='result', result=module.jsonable(result), error=error))
     except Exception:
         send(dict(kind='error', error=traceback.format_exc()))

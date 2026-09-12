@@ -16,9 +16,12 @@ class ScenarioConfig:
     count: int | None = None
     error_model: str = 'deterministic_hash_fixed'
     min_separation: float = 250.0
+    problem: int = 3
 
 
 def generate(config):
+    if config.problem not in (3, 4):
+        raise ValueError('problem must be 3 or 4')
     if config.scenario not in SCENARIOS or config.error_model not in ('deterministic_hash_fixed', 'worst_edge', 'baseline_fixed_field'):
         raise ValueError('Unknown scenario or error model')
     rng = random.Random(config.seed)
@@ -46,6 +49,12 @@ def generate(config):
             raise ValueError('Cannot place sources with requested separation')
         sources.append(dict(channel=channel, x=x, y=y, recv_radius=rng.uniform(1000, 1500),
                             source_type='omnidirectional', orientation=0.0))
+    # Separate PRNG preserves the Q3 positions, radii and seeded sequence.
+    if config.problem == 4:
+        directional_rng = random.Random(config.seed ^ 0x5144)
+        for index, source in enumerate(sources):
+            source['source_type'] = 'directional' if index % 2 == 0 else 'omnidirectional'
+            source['orientation'] = directional_rng.uniform(0, 360)
     return sources
 
 
@@ -133,7 +142,8 @@ class World:
             if source:
                 d = math.dist(xy, [source['x'], source['y']])
                 outward = math.degrees(math.atan2(xy[1]-source['y'], xy[0]-source['x']))
-                covered = source['source_type'] != 'directional' or abs((outward-source['orientation']+180)%360-180) <= 90
+                covered = (d == 0 or source['source_type'] != 'directional' or
+                           abs((outward-source['orientation']+180)%360-180) <= 90)
                 if d <= source['recv_radius'] and covered:
                     result = 'near' if d <= 5 else 'direction'
                     if result == 'direction':
