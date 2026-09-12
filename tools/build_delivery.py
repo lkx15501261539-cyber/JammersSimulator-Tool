@@ -31,7 +31,7 @@ ROOT_FILES = {'README.md', 'ENHANCED.md', 'COMPATIBILITY.md', 'LICENSE',
               'Windows启动说明.txt', '.gitattributes', '.gitignore'}
 SOURCE_DIRS = {'enhanced', 'assets', 'docs', 'examples', 'model_sources',
                'references', 'skills', 'tests', 'tools'}
-SOURCE_SUFFIXES = {'.py', '.md', '.txt', '.json', '.jsonl', '.png', '.jpg', '.svg'}
+SOURCE_SUFFIXES = {'.py', '.md', '.txt', '.json', '.jsonl', '.csv', '.png', '.jpg', '.svg'}
 EXCLUDED_PARTS = {'.git', '.venv', '.cache', '.pytest_cache', '__pycache__',
                   'runs', 'artifacts', 'node_modules', '.env'}
 REPLAY_FILES = ('events.jsonl', 'ground_truth.json', 'metrics.json',
