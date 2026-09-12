@@ -1,0 +1,196 @@
+{
+  "scene": {
+    "distribution": "uniform",
+    "seed": 42
+  },
+  "variant": "route_b2_t5",
+  "config": {
+    "extra_budget": 2,
+    "tau_route_s": 5.0,
+    "candidate_policy": "route"
+  },
+  "selection_rule": "minimum channel among certified-after-opportunity actual clear successes",
+  "eligible_channels": [
+    1,
+    2,
+    3,
+    4,
+    7,
+    8,
+    9,
+    12,
+    13,
+    14,
+    18
+  ],
+  "selected_channel": 1,
+  "hidden_truth_use": "offline plotting and accepted-clear distance verification only; no controller execution",
+  "inputs": {
+    "q4-route-30x7-runs/uniform-seed-42/route_b2_t5/actions.json": "fcdba952057e92adb6490c2202399e1bfcaa6e792dfd3ecf4ad7959646c87fe0",
+    "q4-route-30x7-runs/uniform-seed-42/route_b2_t5/decisions.json": "2a69b3422860952a6d16121c9fbd939f9ec83b8b274de879f785eda53d124430",
+    "q4-route-30x7-runs/uniform-seed-42/route_b2_t5/experiment.json": "9df13fa31e1299ce12a29d5ebabed41b1a91535b1d3fc4e9fdf93e7bc418eff4",
+    "q4-route-30x7-runs/uniform-seed-42/route_b2_t5/ground_truth.json": "1a6470ee315e4bd43ff6bd13d72433f17898633cf5f7bd700c325d9c45f34353",
+    "q4-route-30x7-runs/uniform-seed-42/route_b2_t5/scenario.json": "eecd3ecc2ccbd43b1b55f1fc804eb5fe83038d2a9a5649da32a7abb259895388"
+  },
+  "world_sha256": "b874a8cc4e35d5ae5fcf3d9eb51c0edda519c087613b0346a291353b32cea5e1",
+  "initial_tour_sha256": "bfdefce8442a796227f9c7c59df9d8ce235b7ddd00c73e97d83f9efb37f82c1c",
+  "script_sha256": "c18637205f55279d40583809a18a7c36f22ed6ba72a7444fe865b408b4eb7b7d",
+  "event_sequence": [
+    {
+      "label": "D",
+      "action_step": 1,
+      "position": [
+        0.0,
+        0.0
+      ],
+      "T": 5.0,
+      "result": "direction"
+    },
+    {
+      "label": "M1",
+      "action_step": 48,
+      "position": [
+        -326.667,
+        -892.47
+      ],
+      "T": 652.095182928519,
+      "result": "direction"
+    },
+    {
+      "label": "M2",
+      "action_step": 203,
+      "position": [
+        -200.232,
+        -463.391
+      ],
+      "T": 5404.92737871717,
+      "result": "direction"
+    },
+    {
+      "label": "C",
+      "action_step": 227,
+      "position": [
+        50.588,
+        -146.716
+      ],
+      "T": 6310.253725369324,
+      "result": "success"
+    }
+  ],
+  "certificate_event": {
+    "event": "certified_clear",
+    "action_step": 203,
+    "T": 5404.927378717171,
+    "L_move": 21024.636893585855,
+    "route_revision": 203,
+    "point": [
+      50.588,
+      -146.716
+    ],
+    "followups": 2,
+    "k": 1
+  },
+  "execution_detours": [
+    {
+      "event": "opportunity_detour_verified",
+      "action_step": 47,
+      "T": 578.457078345673,
+      "L_move": 1487.2853917283653,
+      "route_revision": 48,
+      "A": [
+        -0.0,
+        -980.0
+      ],
+      "B": [
+        -490.0,
+        -848.705
+      ],
+      "point": [
+        -326.667,
+        -892.47
+      ],
+      "actual_extra_move_s": 6.59383658785373e-12,
+      "k": 1
+    },
+    {
+      "event": "opportunity_detour_verified",
+      "action_step": 202,
+      "T": 5189.072488962369,
+      "L_move": 19975.362444811846,
+      "route_revision": 203,
+      "A": [
+        848.705,
+        -490.0
+      ],
+      "B": [
+        -724.701,
+        -450.087
+      ],
+      "point": [
+        -200.232,
+        -463.391
+      ],
+      "actual_extra_move_s": 3.342393029015511e-11,
+      "k": 1
+    }
+  ],
+  "clear_true_distance_m": 10.468306425089077,
+  "complete_mission_metrics": {
+    "L_move": 34114.92462737674,
+    "N_sw": 188,
+    "N_meas": 202,
+    "N_clr": 131,
+    "N_succ": 15,
+    "T": 8443.984925475348,
+    "source_count": 15,
+    "cleared": 15,
+    "first_direction_sources": 15,
+    "additional_remeasurements": 25,
+    "mean_followups_per_source": 1.6666666666666667,
+    "first_remeasure_attempts": 15,
+    "first_remeasure_successes": 12,
+    "second_remeasure_attempts": 10,
+    "second_remeasure_successes": 7,
+    "opportunity_direct_clear_sources": 11,
+    "opportunity_near_clear_sources": 0,
+    "optical_fallback_sources": 4,
+    "mean_clear_attempts_per_source": 8.733333333333333,
+    "mean_first_remeasure_distance": 7840.705549604438,
+    "mean_first_remeasure_delay_s": 2057.274443254221,
+    "mean_first_remeasure_feedback_delay_s": 2062.274443254221,
+    "no_remeasure_until_clear_sources": 0,
+    "unresolved_without_remeasure_sources": 0,
+    "budget_exhausted_sources": 10,
+    "budget_stop_events": 10,
+    "directional_confirmation_events": 6,
+    "directional_confirmed_sources": 3,
+    "first_remeasure_success_rate": 0.8,
+    "second_remeasure_success_rate": 0.7,
+    "completed": true,
+    "completion_reason": "all_channels_resolved",
+    "cpu_seconds": 15.903252,
+    "wall_seconds": 16.114027375006117,
+    "warmup_cpu_seconds": 0.31823100000000004,
+    "warmup_wall_seconds": 0.3355478750017937,
+    "mean_selected_J_hat": 142.9948611744481,
+    "executed_remeasure_detour_s": 9.858928251560429e-09,
+    "verified_executed_detours": 25,
+    "scored_remeasurements": 25
+  },
+  "plotted_actual_action_range": {
+    "overview": [
+      1,
+      333
+    ],
+    "zoom": [
+      1,
+      227
+    ]
+  },
+  "files": [
+    "trajectory/uniform42_route_b2_t5_actual_trajectory.png",
+    "trajectory/uniform42_route_b2_t5_actual_trajectory.svg"
+  ],
+  "caption_en": "Actual enhanced-mock trajectory for the prespecified uniform seed 42 scene, using route_b2_t5. Dashed lines show the initial 25-point skeleton; blue solid lines are the chronological accepted-action path, including tasks for other channels. Orange segments show the two execution-certified opportunity segments for CH1. CH1 is selected by the lowest-channel rule among sources that received opportunity measurements, obtained a certified clear point, and then returned an accepted clear success. The zoom displays the actual path up to that success, clipped to the shown region. D, M1, M2 and C mark steps 1, 48, 203 and 227, respectively. Both remeasurement detours are numerically zero (each < 1e-8 s), while measurements and channel switching remain chargeable. The inset shows the accepted 20 m clear disk and the offline source location; hidden truth is used only for plotting and checking the logged success. This single fixed scene illustrates execution and is not a representative-effect estimate or a claim of immediate remeasurement.",
+  "caption_zh": "预先固定 uniform、seed=42 场景下 route_b2_t5 的真实执行轨迹。虚线为初始25点搜索骨架，蓝色实线为按已接受动作顺序连接的真实路径，包含穿插处理其他频道的移动。橙色线段是CH1两次复测的执行前认证路线段。CH1由“机会复测后得到认证清除点并实际清除成功的最低频道”规则选取，不按收益挑选。局部图显示截至CH1清除成功的实际路径，并按坐标范围裁剪；D、M1、M2、C分别为第1、48、203、227个已接受动作。两次边际移动时间均小于1e-8秒，可视为数值零，检测及换频仍按题意计费。小窗显示20米清除圆与离线真源，仅用于绘图核验，不参与在线决策。此例用于说明执行过程，不代表平均收益，也不表示每次复测都会立即执行。"
+}

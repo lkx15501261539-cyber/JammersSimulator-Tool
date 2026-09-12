@@ -1,0 +1,65 @@
+{
+  "scope": "Compact derived results; raw replay traces and full experiment matrix intentionally archived separately.",
+  "files": {
+    "analysis.md": {
+      "sha256": "11200d2ca3154577d5b505897761bc9c657fa54ba33683cdcc32eb1e8ab87ea4",
+      "bytes": 11450
+    },
+    "analysis.json": {
+      "sha256": "b547a3e9c6e988cb3c83b910db762e5bcd362218c0bf2790d53b98873b2ec231",
+      "bytes": 720409
+    },
+    "summary.csv": {
+      "sha256": "7e569da38e91359c835d29eda2a0597012b4b9164adf15609f2a427507c057fd",
+      "bytes": 6086
+    },
+    "first_remeasurement_diagnostics.png": {
+      "sha256": "4c4aecf29d57416507a501207baf43326ccc15e8940b1d3e380569bca818cb4b",
+      "bytes": 98584
+    },
+    "movement_vs_remeasurement.svg": {
+      "sha256": "f54b43873ce942bb292cc0467cf51099abff09f5914e6d63073d84ff8db35de6",
+      "bytes": 73831
+    },
+    "movement_vs_remeasurement.png": {
+      "sha256": "ff523719e5bca982ff8ad7af7d294c65492a0070362cec565565bb523b307508",
+      "bytes": 118939
+    },
+    "first_remeasurement_diagnostics.svg": {
+      "sha256": "62913f0e5b70a9c372872ba82974d4893c4447efdecb6cd33c6646d4d049523b",
+      "bytes": 55213
+    },
+    "budget_and_detour_ablations.svg": {
+      "sha256": "d05db9772999572eeb2fe9171f29e560a707981659630410058cdee834f0b9b0",
+      "bytes": 59410
+    },
+    "completed_task_comparison.svg": {
+      "sha256": "125fc5703ae257fb95c60b3d60c5275c5bd8566be1115e2ef7c3598911f3561e",
+      "bytes": 71682
+    },
+    "completed_task_comparison.png": {
+      "sha256": "dcde1fb3490d6dbf915e2f6eea2c677e8f7fca27870fff4d3c79a1d8be3968ab",
+      "bytes": 89756
+    },
+    "budget_and_detour_ablations.png": {
+      "sha256": "0def56c734fe651ff51beed555e784f4667f1185e4fbf1db0726f68e7f8a8f71",
+      "bytes": 126653
+    },
+    "uniform42_route_b2_t5_actual_trajectory.json": {
+      "sha256": "4ae19d2529c37b3f53cb573ca3a2947208a2c6e9bd41b6d19e42a8401b5017f7",
+      "bytes": 7135
+    },
+    "uniform42_route_b2_t5_actual_trajectory.caption.txt": {
+      "sha256": "98d160f3be9d7e8ebcaf3e7fd504b482b96d649396cfff9fca0ec236e52e53da",
+      "bytes": 1884
+    },
+    "uniform42_route_b2_t5_actual_trajectory.png": {
+      "sha256": "361a10bd7758691a50d5637ef2f7e32c16a350d815e186baf71b43c75f1ddefa",
+      "bytes": 399618
+    },
+    "uniform42_route_b2_t5_actual_trajectory.svg": {
+      "sha256": "9d308bf273fb60f9a3908ff6af59c0cb8248683ff1f9ba278aceaedd843fc348",
+      "bytes": 52984
+    }
+  }
+}
