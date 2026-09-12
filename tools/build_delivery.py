@@ -19,7 +19,10 @@ DELIVERY_FILES = {'tools/build_delivery.py', 'tests/test_delivery.py',
                   'start_q4.command', 'Mac启动说明.txt',
                   'start_q4_v2.command', 'start_q4_v2.bat', 'docs/Q4_V2.md',
                   'model_sources/q4/q4_v2.py', 'model_sources/q4/opportunities.py',
-                  'tests/test_q4_v2.py', 'tests/test_q4_opportunities.py'}
+                  'tests/test_q4_v2.py', 'tests/test_q4_opportunities.py',
+                  'model_sources/q4/route_opportunistic_remeasure.py',
+                  'tests/test_route_geometry.py', 'tests/test_route_controller.py',
+                  'docs/Q4_ROUTE_V3.md'}
 ROOT_FILES = {'README.md', 'ENHANCED.md', 'COMPATIBILITY.md', 'LICENSE',
               'cli.py', 'mcp_server.py', 'mock_simulator.py', 'simulator_client.py',
               'requirements.txt', 'requirements-enhanced.txt', 'requirements-q3-v2.txt',
@@ -151,7 +154,7 @@ def build_delivery(output, *, source=ROOT, v1_archive=None, demo_run=None):
             raise ValueError('The optional demo must be a completed Q3 v2.0 replay')
     manifest = {'schema_version': 1, 'package': PACKAGE,
                 'contains_v1': f'models/{V1_ARCHIVE}' in contents,
-                'q4_models': ['q4_cu', 'q4_opportunity_v2'],
+                'q4_models': ['q4_cu', 'q4_opportunity_v2', 'q4_route_v3'],
                 'contains_q3_v2_demo': 'examples/q3-v2-demo/events.jsonl' in contents,
                 'files': {name: {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
                           for name, data in sorted(contents.items())}}

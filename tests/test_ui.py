@@ -79,7 +79,7 @@ def test_baseline_button_dispatches_selected_original_archive(tmp_path,monkeypat
     errors=[]; monkeypatch.setattr(window,'show_error',errors.append)
     assert window.model.currentData()=='hexagon_v1'
     assert window.error.currentText()=='baseline_fixed_field'
-    assert window.model.count()==6  # Three Q3 models, two Q4 versions, and the Q1 demo.
+    assert window.model.count()==7  # Three Q3 models, three Q4 versions, and the Q1 demo.
     window.archive.setText(str(archive))
     window.model.setCurrentIndex(window.model.findData('spiral_v1'))
     window.new.click()

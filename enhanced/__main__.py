@@ -2,6 +2,7 @@ import argparse
 import csv
 from datetime import datetime
 import json
+import math
 from pathlib import Path
 from .world import ScenarioConfig, SCENARIOS
 from .strategy import DEFAULT_Q1
@@ -13,7 +14,7 @@ def main():
     parser = argparse.ArgumentParser(description='Enhanced Jammers simulation / desktop replay')
     parser.add_argument('mode', choices=['gui', 'demo', 'baseline', 'q4', 'batch', 'serve'])
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--problem', type=int, choices=[3, 4], default=3,
+    parser.add_argument('--problem', type=int, choices=[3, 4], default=None,
                         help='Problem number; Q4 enables mixed directional/omnidirectional sources')
     parser.add_argument('--scenario', choices=SCENARIOS, default='uniform')
     parser.add_argument('--error-model', choices=['deterministic_hash_fixed', 'worst_edge', 'baseline_fixed_field'],
@@ -26,11 +27,21 @@ def main():
     parser.add_argument('--replay', type=Path)
     parser.add_argument('--seeds', default='42,43,44')
     parser.add_argument('--port', type=int, default=2027)
+    parser.add_argument('--extra-budget','--budget',type=int,choices=[1,2,3],default=2,
+                        help='Additional measurements after first direction; route model only')
+    parser.add_argument('--tau-route',type=float,default=5.,
+                        help='Maximum extra movement time in seconds; route model only')
+    parser.add_argument('--candidate-policy',choices=['route','global_q2'],default='route',
+                        help='Route opportunities or global Q2 comparison; route model only')
     args = parser.parse_args()
-    if args.mode == 'q4' or args.model in Q4_MODEL_LABELS:
+    if args.problem is None:
+        args.problem=4 if args.mode=='q4' or args.model in Q4_MODEL_LABELS else 3
+    if (args.mode == 'q4' or args.model in Q4_MODEL_LABELS) and args.model!='q4_route_v3':
         args.problem = 4
+    if not math.isfinite(args.tau_route) or args.tau_route<0:
+        parser.error('--tau-route must be nonnegative and finite')
     if args.problem == 4 and args.model in MODEL_LABELS and args.mode != 'serve':
-        parser.error('Problem 4 requires --model q4_cu or q4_opportunity_v2; the ZIP baseline models are Q3 only')
+        parser.error('Problem 4 requires --model q4_cu, q4_opportunity_v2, or q4_route_v3; the ZIP baseline models are Q3 only')
     if args.problem == 4 and args.mode in ('demo', 'batch'):
         parser.error('For Q4 use gui, q4, baseline --model q4_cu, or serve')
     args.model = args.model or ('q4_cu' if args.problem == 4 else 'hexagon_v1')
@@ -41,10 +52,12 @@ def main():
     output = args.output or Path('runs')/datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     if args.mode == 'gui':
         from .ui import launch
-        launch(config, args.q1, args.replay, args.model, args.archive)
+        options=dict(route_options=dict(extra_budget=args.extra_budget,tau_route_s=args.tau_route,candidate_policy=args.candidate_policy)) if args.model=='q4_route_v3' else {}
+        launch(config, args.q1, args.replay, args.model, args.archive,**options)
     elif args.mode == 'q4' or args.mode == 'baseline' and args.model in Q4_MODEL_LABELS:
         from .q4_adapter import run_q4
-        run = run_q4(config, output, model=args.model,
+        options=dict(extra_budget=args.extra_budget,tau_route_s=args.tau_route,candidate_policy=args.candidate_policy) if args.model=='q4_route_v3' else {}
+        run = run_q4(config, output, model=args.model, **options,
                      progress=lambda p: print(f"{p['phase']} | {p['action_count']} actions | {p['virtual_time_s']:.1f} s", flush=True))
         print(run['metadata'])
     elif args.mode == 'baseline':

@@ -6,7 +6,7 @@ Jammers Lab · Mac 启动说明
 3. 双击“启动界面.command”：第三问七点六边形 Baseline 2.0。
    双击“start_q4.command”：第四问 1.0，25 点 C/U。
    双击“start_q4_v2.command”：第四问 2.0，左右机会复测。
-   窗口左上角的模型选择框可切换已整合的 Q3 三个模型和 Q4 两个版本。
+   窗口左上角的模型选择框可切换已整合的 Q3 三个模型和 Q4 三个版本。
 4. 首次在本机 ~/Library/Application Support/JammersLab/venvs/python-3.12
    准备共用环境，并联网安装五个模型需要的依赖。其他 Python 版本使用对应的
    python-主版本.次版本 子目录。依赖检查通过后，以后可以离线启动。
@@ -58,5 +58,5 @@ Apple 官方说明：https://support.apple.com/zh-cn/102445
 额外界面参数会转交模拟器，例如：
   ./启动界面.command --replay "examples/q3-v2-demo"
 
-Q4 两个版本共用环境和认证光学兜底，但为独立模型入口，旧入口仍选择 Q4 1.0。
+Q4 三个版本共用环境和认证光学兜底，但为独立模型入口，旧入口仍选择 Q4 1.0。
 Q4 2.0 实现范围与仍保留的限制见 docs/Q4_V2.md。

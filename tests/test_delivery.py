@@ -23,7 +23,7 @@ def test_source_delivery_is_reproducible_and_self_contained(tmp_path):
             'start_q4_v2.command', 'start_q4_v2.bat', 'docs/Q4_V2.md',
             'model_sources/q4/q4.py', 'model_sources/q4/q4_v2.py',
             'model_sources/q4/opportunities.py', f'models/{V2_ARCHIVE}'} <= names
-    assert manifest['q4_models'] == ['q4_cu', 'q4_opportunity_v2']
+    assert manifest['q4_models'] == ['q4_cu', 'q4_opportunity_v2', 'q4_route_v3']
     assert not any(set(Path(name).parts) & {'.git', '.venv', '.cache', '__pycache__', 'runs'}
                    for name in names)
     with zipfile.ZipFile(first) as archive:

@@ -1,6 +1,7 @@
 """Qt observer: renders immutable run data; never supplies truth to a strategy."""
 from dataclasses import replace
 from datetime import datetime
+from decimal import Decimal
 import math
 from pathlib import Path
 import time
@@ -9,7 +10,7 @@ from PySide6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath, QPolygon
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGraphicsView, QGraphicsScene, QPushButton, QComboBox, QSpinBox, QLabel, QSlider,
     QCheckBox, QFileDialog, QMessageBox, QSplitter, QFormLayout, QGroupBox, QScrollArea,
-    QLineEdit, QProgressBar, QTabWidget, QDockWidget)
+    QLineEdit, QProgressBar, QTabWidget, QDockWidget, QDoubleSpinBox)
 from .world import ScenarioConfig, SCENARIOS
 from .replay import project, load_run
 
@@ -32,10 +33,11 @@ class SimulationWorker(QThread):
     failed = Signal(str)
     progress = Signal(object)
     cancelled = Signal()
-    def __init__(self, config, q1, model='q1_demo', archive=None, parent=None):
+    def __init__(self, config, q1, model='q1_demo', archive=None, parent=None,route_options=None):
         super().__init__(parent)
         self.config, self.q1 = config,q1
         self.model, self.archive = model,archive
+        self.route_options=route_options or {}
     def run(self):
         try:
             directory = Path('runs')/datetime.now().strftime('%Y%m%d-%H%M%S-%f')
@@ -44,9 +46,10 @@ class SimulationWorker(QThread):
                 run = simulate(self.config,directory,self.q1)
             elif self.model in Q4_MODEL_LABELS:
                 from .q4_adapter import run_q4
-                run = run_q4(replace(self.config,problem=4),directory,
+                run = run_q4(self.config if self.model=='q4_route_v3' else replace(self.config,problem=4),directory,
                              progress=self.progress.emit,
-                             cancelled=self.isInterruptionRequested,model=self.model)
+                             cancelled=self.isInterruptionRequested,model=self.model,
+                             **(self.route_options if self.model=='q4_route_v3' else {}))
             else:
                 from .baseline import run_baseline
                 run = run_baseline(self.config,self.archive,self.model,directory,
@@ -65,6 +68,7 @@ class Window(QMainWindow):
         super().__init__()
         self.q1, self.run_data, self.t, self.playing, self.worker = q1,None,0.,False,None
         self.config, self._close_when_finished = config,False
+        self._route_problem_id,self._route_candidate_policy=4,'route'
         self.setWindowTitle('Jammers Lab · Baseline 1.0 探索仿真')
         self.resize(1460,940)
         self.setMinimumSize(1050,700)
@@ -90,10 +94,21 @@ class Window(QMainWindow):
         self.browse_archive.clicked.connect(self.select_archive)
         self.archive_label = QLabel('交付压缩包')
         self.current_model_label = QLabel()
+        self.route_settings=QWidget()
+        route_layout=QHBoxLayout(self.route_settings);route_layout.setContentsMargins(0,0,0,0)
+        self.route_budget=QComboBox()
+        for n in (1,2,3):self.route_budget.addItem(f'{n} 次',n)
+        self.route_budget.setCurrentIndex(1)
+        self.route_tau=QDoubleSpinBox();self.route_tau.setRange(0,120)
+        self.route_tau.setDecimals(1);self.route_tau.setSingleStep(1);self.route_tau.setValue(5)
+        self.route_tau.setSuffix(' 秒')
+        self.route_tau.setToolTip('一次机会测点插入原路线后，额外移动用时的上限。')
+        for widget in (QLabel('追加复测'),self.route_budget,QLabel('最多绕路'),self.route_tau):route_layout.addWidget(widget)
         model_row.addWidget(QLabel('模型')); model_row.addWidget(self.model)
         model_row.addWidget(self.archive_label); model_row.addWidget(self.archive,1)
         model_row.addWidget(self.browse_archive)
         model_row.addWidget(self.current_model_label,1)
+        model_row.addWidget(self.route_settings)
         layout.addLayout(model_row)
         top = QHBoxLayout()
         self.scenario = QComboBox(); self.scenario.addItems(SCENARIOS); self.scenario.setCurrentText(config.scenario)
@@ -204,6 +219,8 @@ class Window(QMainWindow):
         QShortcut(QKeySequence('Space'),self,activated=self.toggle_play)
         QShortcut(QKeySequence('Right'),self,activated=self.step)
         self.model.currentIndexChanged.connect(self.model_changed)
+        self.route_budget.currentIndexChanged.connect(self.update_note)
+        self.route_tau.valueChanged.connect(self.update_note)
         self.archive.editingFinished.connect(self.preview_route)
         self.update_model_controls()
         self.set_busy(False)
@@ -218,6 +235,15 @@ class Window(QMainWindow):
     def update_zoom(self,factor):
         self.zoom_slider.blockSignals(True);self.zoom_slider.setValue(round(100*math.log2(factor)));self.zoom_slider.blockSignals(False)
         self.zoom_value.setText(f'{factor*100:.0f}%')
+    def set_route_tau(self,value):
+        """Keep valid replay/CLI thresholds instead of rounding to UI defaults."""
+        value=float(value)
+        if not math.isfinite(value) or value<0:
+            raise ValueError('路线绕路时间必须是非负有限数值')
+        decimals=max(0,-Decimal(str(value)).as_tuple().exponent)
+        self.route_tau.setDecimals(max(self.route_tau.decimals(),decimals))
+        self.route_tau.setMaximum(max(self.route_tau.maximum(),value))
+        self.route_tau.setValue(value)
     def open_run_directory(self):
         if self.run_data and self.run_data.get('directory'):
             QDesktopServices.openUrl(QUrl.fromLocalFile(self.run_data['directory']))
@@ -256,6 +282,7 @@ class Window(QMainWindow):
         self.set_busy(False)
         self.update_note()
     def model_changed(self,*args):
+        self._route_problem_id,self._route_candidate_policy=4,'route'
         self.clear_run()
         self.update_model_controls()
         self.statusBar().showMessage(f'已切换：{self.model.currentText()}。点击“开始模拟”运行新一局。')
@@ -269,16 +296,21 @@ class Window(QMainWindow):
                 self.archive.setText(self._archive_paths.get(family,str(default_archive(model))))
                 self._archive_family = family
             self.archive.setPlaceholderText(f'选择 {MODEL_LABELS[model]} 的交付 ZIP')
-        self.config = replace(self.config,problem=4 if model in Q4_MODEL_LABELS else 3)
+        self.config = replace(self.config,problem=self._route_problem_id if model=='q4_route_v3' else 4 if model in Q4_MODEL_LABELS else 3)
         self.setWindowTitle('Jammers Lab · '+Q4_MODEL_LABELS[model].replace('第四问','第四问 Q4',1) if model in Q4_MODEL_LABELS else
                             'Jammers Lab · Q1 单目标验证' if model == 'q1_demo' else
                             f'Jammers Lab · 第三问 Q3 · {MODEL_LABELS.get(model,model)}')
+        if model=='q4_route_v3' and self.config.problem==3:
+            self.setWindowTitle('Jammers Lab · 第三问 Q3 · 路径约束机会复测 · v3.0')
         busy = self.worker is not None and self.worker.isRunning()
         for widget in (self.archive_label,self.archive,self.browse_archive):
             widget.setVisible(baseline)
         self.current_model_label.setText('当前模型：'+Q4_MODEL_LABELS[model] if model in Q4_MODEL_LABELS else
                                          '当前模型：Q1 单目标验证')
+        if model=='q4_route_v3' and self.config.problem==3:
+            self.current_model_label.setText('当前模型：第三问 · 路径约束机会复测 · v3.0')
         self.current_model_label.setVisible(not baseline)
+        self.route_settings.setVisible(model=='q4_route_v3')
         self.archive.setEnabled(baseline and not busy)
         self.browse_archive.setEnabled(baseline and not busy)
         self.update_note()
@@ -301,11 +333,16 @@ class Window(QMainWindow):
             except (OSError,ValueError,KeyError,zipfile.BadZipFile):pass
         self.map.draw(state,[],False,False)
         self.mission_panel.route_progress.setText(f"固定测点 {len(state.get('route_points',[]))} 个 · 尚未开始")
-    def update_note(self):
+    def update_note(self,*args):
         metadata = self.run_data['metadata'] if self.run_data else {}
         outcome = metadata.get('completion',metadata.get('outcome'))
         model = self.model.currentData()
-        text = ('第四问 Q4 v2.0：25 点搜索 + 左右机会复测。\n'
+        route_intro='优先沿既定路线进行机会复测' if self._route_candidate_policy=='route' else '全域主动测点对照'
+        text = (f'第{"四" if self.config.problem==4 else "三"}问 Q{self.config.problem} v3.0：{route_intro}。\n'
+                f'首次发现后最多追加 {self.route_budget.currentData()} 次；单次最多绕路 {self.route_tau.value():g} 秒。\n'
+                '更新定位后顺路清除；无合适机会或预算用完时，执行覆盖 F 的光学后备。'
+                if model=='q4_route_v3' else
+                '第四问 Q4 v2.0：25 点搜索 + 左右机会复测。\n'
                 '利用后续搜索点复测；一侧安全失联时保留已认证的对侧机会。\n'
                 '每源最多追加 3 次；预算耗尽或无可用机会时，光学覆盖 F 收尾。\n'
                 '点击“开始模拟”运行当前模型，可切换 v1.0 对照。' if model == 'q4_opportunity_v2' else
@@ -323,7 +360,8 @@ class Window(QMainWindow):
             replay_model=metadata.get('model')
             if replay_model not in Q4_MODEL_LABELS and metadata.get('problem') == 4:
                 replay_model='q4_cu'  # Older Q4 logs did not record a model key.
-            text += '\n当前回放：'+(Q4_MODEL_LABELS[replay_model].replace('第四问','第四问 Q4',1)
+            replay_problem='第三问 Q3' if replay_model=='q4_route_v3' and metadata.get('problem')==3 else '第四问 Q4'
+            text += '\n当前回放：'+(Q4_MODEL_LABELS[replay_model].replace('第四问',replay_problem,1)
                                    if replay_model in Q4_MODEL_LABELS else str(metadata.get('strategy','已保存任务')))
         if outcome == 'incomplete_unresolved':
             text += '\n本局模型已结束，仍有目标未解决。'
@@ -339,7 +377,7 @@ class Window(QMainWindow):
                                              'ZIP 压缩包 (*.zip);;所有文件 (*)')
         if path:self.archive.setText(path);self.preview_route()
     def set_busy(self,busy):
-        for widget in (self.new,self.model,self.scenario,self.seed,self.error,self.open_button): widget.setEnabled(not busy)
+        for widget in (self.new,self.model,self.scenario,self.seed,self.error,self.open_button,self.route_budget,self.route_tau): widget.setEnabled(not busy)
         baseline = self.model.currentData() in MODEL_LABELS
         self.archive.setEnabled(baseline and not busy)
         self.browse_archive.setEnabled(baseline and not busy)
@@ -361,8 +399,10 @@ class Window(QMainWindow):
                                     '正在启动原始模型，计算完成后自动播放。复杂场景可能需要数分钟。')
         self.statusBar().showMessage(f'正在计算：{self.model.currentText()} · seed {self.seed.value()}')
         self.worker = SimulationWorker(replace(self.config,seed=self.seed.value(),scenario=self.scenario.currentText(),
-                                               error_model=self.error.currentText(),problem=4 if model in Q4_MODEL_LABELS else 3),
-                                       self.q1,model,archive,self)
+                                               error_model=self.error.currentText(),problem=self.config.problem),
+                                       self.q1,model,archive,self,
+                                       route_options=dict(extra_budget=self.route_budget.currentData(),tau_route_s=self.route_tau.value(),
+                                                          candidate_policy=self._route_candidate_policy))
         self.worker.completed.connect(self.simulation_completed)
         self.worker.failed.connect(self.show_error)
         self.worker.progress.connect(self.show_progress)
@@ -423,6 +463,13 @@ class Window(QMainWindow):
             if run['metadata'].get(key):control.setCurrentText(run['metadata'][key])
         if 'seed' in run['metadata']:self.seed.setValue(run['metadata']['seed'])
         self.play.setText('▶ 播放')
+        route_config=run['metadata'].get('route_config') or {}
+        if route_config:
+            self._route_problem_id=route_config.get('problem_id',run['metadata'].get('problem',4))
+            self._route_candidate_policy=route_config.get('candidate_policy','route')
+            index=self.route_budget.findData(route_config.get('extra_budget',2))
+            if index>=0:self.route_budget.setCurrentIndex(index)
+            self.set_route_tau(route_config.get('tau_route_s',5.))
         model=run['metadata'].get('model')
         if model not in Q4_MODEL_LABELS:
             model='q4_cu' if run['metadata'].get('problem') == 4 else run['metadata'].get('baseline_model')
@@ -520,12 +567,19 @@ def configure_app(app):
     app.setStyleSheet('QWidget { font-size:12px; } QMainWindow { background:#edf1f5; } QGroupBox { background:#f9fbfc; border:1px solid #d8e3e9; border-radius:8px; font-weight:600; margin-top:12px; padding:18px 10px 10px; } QGroupBox::title { subcontrol-origin:margin; left:12px; padding:0 5px; color:#31576b; } QPushButton { padding:7px 11px; border:1px solid #becfd9; border-radius:5px; background:#f9fcfd; } QPushButton:hover { border-color:#42899d; background:#e6f4f6; } QPushButton:disabled { color:#99a9b3; } QComboBox,QLineEdit,QSpinBox { min-height:25px; padding:2px 5px; } QScrollArea { border:0; } QSlider::groove:horizontal { background:#c5d7de; height:6px; border-radius:3px; } QSlider::sub-page:horizontal { background:#268f98; border-radius:3px; } QSlider::handle:horizontal { background:#fbffff; border:2px solid #268f98; width:12px; margin:-5px 0; border-radius:6px; }')
 
 
-def launch(config,q1,replay=None,model=None,archive=None):
+def launch(config,q1,replay=None,model=None,archive=None,route_options=None):
     app = QApplication.instance() or QApplication([])
     configure_app(app)
     window = Window(config,q1,replay)
     if model is not None and replay is None:
         window.model.setCurrentIndex(window.model.findData(model))
+        if model=='q4_route_v3':
+            window._route_problem_id=config.problem
+            window._route_candidate_policy=(route_options or {}).get('candidate_policy','route')
+            window.update_model_controls()
+    if route_options and replay is None:
+        window.route_budget.setCurrentIndex(window.route_budget.findData(route_options.get('extra_budget',2)))
+        window.set_route_tau(route_options.get('tau_route_s',5.))
     if archive is not None:
         window.archive.setText(str(archive));window.preview_route()
     window.show()

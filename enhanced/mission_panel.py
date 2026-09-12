@@ -17,8 +17,9 @@ def coordinates(position):
 def task_name(task):
     kind=task.get('kind')
     channel=task.get('channel')
-    if kind=='anchor_scan':return f"固定点 P{task.get('anchor_index',0)+1} 扫描"
-    label={'measure':'测向','clear':'清除','service':'优先处理'}.get(kind,kind or '任务')
+    if kind in ('anchor_scan','search'):return f"固定点 P{task.get('anchor_index',0)+1} 扫描"
+    label={'measure':'测向','clear':'清除','service':'优先处理','opportunity':'顺路复测',
+           'direct':'保证清除','optical':'光学清除','near':'原地清除'}.get(kind,kind or '任务')
     return f'CH {channel:02d} · {label}' if channel is not None else label
 
 
@@ -135,6 +136,8 @@ class MissionPanel(QWidget):
         strategy=state.get('strategy') or {}
         is_q4=strategy.get('problem')==4 or strategy.get('model') in ('q4_cu','q4_opportunity_v2')
         is_opportunity=strategy.get('model')=='q4_opportunity_v2'
+        is_route=strategy.get('model')=='q4_route_v3'
+        route_config=strategy.get('route_config') or {}
         is_v2=strategy.get('model')=='hexagon_v2' or strategy.get('version')=='baseline-v2.0'
         self.time.setText(f"{state['time']:.1f} s")
         self.cleared.setText(f"{len(state['cleared'])} / {len(sources)}")
@@ -165,7 +168,8 @@ class MissionPanel(QWidget):
             pending_channels=[p.get('channel') if isinstance(p,dict) else p for p in pending]
             pending_text='、'.join(f'CH {c:02d}' for c in pending_channels if c is not None)
             kind=strategy.get('queue_kind')
-            explanation=('第四问 v2.0：左右机会复测 + 有限前移，执行下一任务后重新规划。' if is_opportunity else
+            explanation=(f"路径机会复测：最多追加 {route_config.get('extra_budget',2)} 次，单次最多绕路 {route_config.get('tau_route_s',5):g} 秒。" if is_route else
+                         '第四问 v2.0：左右机会复测 + 有限前移，执行下一任务后重新规划。' if is_opportunity else
                          '第四问：最小增量插入，执行下一任务后重新规划。' if is_q4 else
                          'Baseline 2.0：最小增量插入 + 两轮任务 2-opt；允许连续源任务。' if is_v2 else
                          '尾扫按原模型发现顺序执行。' if kind=='tail' else '每段最多优先处理 1 个目标，其余固定点保持顺序。')
@@ -180,6 +184,20 @@ class MissionPanel(QWidget):
                     explanation+=f'\n另有 {len(pairs)-3} 个左右机会，按队列执行。'
                 if not pairs:
                     explanation+='\n当前无待执行的认证左右机会。'
+            if is_route:
+                opportunities=strategy.get('opportunities',[])
+                levels={1:'路线内',2:'路线附近',3:'主动复测','route':'路线内','on_route':'路线内',
+                        'near_route':'路线附近','q2':'主动复测','global_q2':'主动复测'}
+                for candidate in opportunities[:3]:
+                    k=candidate.get('channel',candidate.get('k'))
+                    if k is None:continue
+                    level=levels.get(candidate.get('level'),'机会复测')
+                    point=candidate.get('position',candidate.get('point'))
+                    explanation+=f"\nCH {k:02d} · {level} {coordinates(point)}"
+                if len(opportunities)>3:explanation+=f'\n另有 {len(opportunities)-3} 个待复测频道。'
+                if not opportunities:explanation+='\n当前无待执行的路线复测预约。'
+                confirmed=sum(bool(row.get('directional_confirmed')) for row in strategy.get('channel_iterations',{}).values())
+                if confirmed:explanation+=f'\n经接收范围认证后确认定向：{confirmed} 个频道。'
             self.queue_note.setText(explanation+ ('\n待调度：'+pending_text if pending_text else ''))
         decision=strategy.get('q4_decision') if is_q4 else strategy.get('cu_decision') if is_v2 else None
         self.q4_cost.setVisible(bool(decision))
@@ -207,7 +225,8 @@ class MissionPanel(QWidget):
             rows.append([f'{channel:02d}',iteration,str(count),status]);colors.append(SOURCE_COLORS[visual_status])
         active=selected_source_channel(state)
         self.fill_table(self.iteration_table,rows,colors,keys=channels,active=active)
-        self.iteration_note.setText(('第四问追加测向上限 3 次；已发现源不再参与存在性扫描。\n' if is_q4 else
+        self.iteration_note.setText((f"首次发现后追加测向上限 {route_config.get('extra_budget',2)} 次；达到上限后停止无线电。\n" if is_route else
+                                    '第四问追加测向上限 3 次；已发现源不再参与存在性扫描。\n' if is_q4 else
                                     'Baseline 2.0 每源追加测向上限 3 次；固定点仅扫描未发现频道。\n' if is_v2 else
                                     '迭代 = 原模型追加测点次数。\n')+
                                    ('含真值源频道；关闭真值后仅列已发现源。' if show_truth else '仅列已发现源；未发现源不提前显示。'))

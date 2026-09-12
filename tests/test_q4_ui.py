@@ -26,8 +26,8 @@ def sample_run(**metadata):
                 sources=[], metadata=data)
 
 
-def wait_worker(app, window):
-    deadline = time.monotonic() + 10
+def wait_worker(app, window, timeout=10):
+    deadline = time.monotonic() + timeout
     while window.worker is not None and time.monotonic() < deadline:
         app.processEvents()
         time.sleep(.005)
@@ -55,7 +55,7 @@ def test_problem4_selects_controller_and_25_point_preview(app):
 
 def test_q4_start_without_zip_runs_adapter_and_autoplays(app, monkeypatch, tmp_path):
     calls = []
-    def run(config, output, progress=None, cancelled=None, model='q4_cu'):
+    def run(config, output, progress=None, cancelled=None, model='q4_cu',**options):
         calls.append(config)
         assert callable(progress) and callable(cancelled)
         progress(dict(phase='running', action_count=4, virtual_time_s=20.))
@@ -140,7 +140,7 @@ def test_q1_hides_zip_and_q3_restores_saved_path(app):
 
 def test_q4_worker_cancellation_reaches_adapter(app, monkeypatch):
     started, stopped = threading.Event(), threading.Event()
-    def run(config, output, progress=None, cancelled=None, model='q4_cu'):
+    def run(config, output, progress=None, cancelled=None, model='q4_cu',**options):
         started.set()
         deadline = time.monotonic() + 5
         while not cancelled() and time.monotonic() < deadline:
@@ -181,7 +181,7 @@ def test_gui_cli_selects_requested_problem(monkeypatch, argv, problem, model):
 def test_q4_cli_dispatches_adapter(monkeypatch, tmp_path, argv):
     from enhanced.__main__ import main
     calls = []
-    def run(config, output, progress=None, model='q4_cu'):
+    def run(config, output, progress=None, model='q4_cu',**options):
         calls.append((config, output))
         return sample_run()
     monkeypatch.setattr(q4_adapter, 'run_q4', run)
@@ -199,7 +199,7 @@ def test_conflicting_q4_and_q3_model_rejected(monkeypatch):
         main()
 
 
-def test_unified_window_switches_all_five_models(app):
+def test_unified_window_switches_all_models(app):
     window = ui.Window(ScenarioConfig(), None)
     window.timer.stop()
     try:
@@ -223,7 +223,7 @@ def test_unified_window_switches_all_five_models(app):
 @pytest.mark.parametrize('model', list(q4_adapter.Q4_MODEL_LABELS))
 def test_q4_replay_preserves_version_and_dispatches_next_run(app,monkeypatch,tmp_path,model):
     calls=[]
-    def run(config,output,progress=None,cancelled=None,model='q4_cu'):
+    def run(config,output,progress=None,cancelled=None,model='q4_cu',**options):
         calls.append((config.problem,model))
         return sample_run(model=model)
     monkeypatch.setattr(q4_adapter,'run_q4',run)
@@ -246,7 +246,7 @@ def test_q4_replay_preserves_version_and_dispatches_next_run(app,monkeypatch,tmp
 def test_q4_v2_cancellation_preserves_gui_state(app,monkeypatch):
     started=threading.Event()
     models=[]
-    def run(config,output,progress=None,cancelled=None,model='q4_cu'):
+    def run(config,output,progress=None,cancelled=None,model='q4_cu',**options):
         models.append(model)
         started.set()
         deadline=time.monotonic()+5
@@ -274,7 +274,7 @@ def test_q4_v2_cancellation_preserves_gui_state(app,monkeypatch):
 def test_q4_v2_cli_dispatches_selected_version(monkeypatch,tmp_path,mode):
     from enhanced.__main__ import main
     calls=[]
-    def run(config,output,progress=None,model='q4_cu'):
+    def run(config,output,progress=None,model='q4_cu',**options):
         calls.append((config.problem,model,output))
         return sample_run(model=model)
     monkeypatch.setattr(q4_adapter,'run_q4',run)
@@ -292,4 +292,112 @@ def test_q4_v2_replay_explains_maximum16_early_completion(app):
         assert '已清除 16 个频道' in window.note.text()
         assert '剩余存在性扫描无需继续' in window.note.text()
     finally:
+        window.close()
+
+
+@pytest.mark.parametrize('budget',[1,2,3])
+def test_route_controls_dispatch_and_restore_budget(app,monkeypatch,budget):
+    calls=[]
+    def run(config,output,progress=None,cancelled=None,model=None,**options):
+        calls.append((model,options))
+        return sample_run(model=model,route_config=dict(options,problem_id=config.problem))
+    monkeypatch.setattr(q4_adapter,'run_q4',run)
+    window=ui.Window(ScenarioConfig(problem=4),None);window.timer.stop()
+    try:
+        assert window.route_settings.isHidden()
+        window.model.setCurrentIndex(window.model.findData('q4_route_v3'))
+        assert not window.route_settings.isHidden() and window.archive.isHidden()
+        window.route_budget.setCurrentIndex(window.route_budget.findData(budget))
+        window.route_tau.setValue(7.5)
+        assert f'最多追加 {budget} 次' in window.note.text() and '7.5 秒' in window.note.text()
+        window.new.click();wait_worker(app,window)
+        assert calls==[('q4_route_v3',dict(extra_budget=budget,tau_route_s=7.5,candidate_policy='route'))]
+        assert window.route_budget.currentData()==budget and window.route_tau.value()==7.5
+        assert window.playing
+        window.model.setCurrentIndex(window.model.findData('q4_opportunity_v2'))
+        assert window.route_settings.isHidden()
+    finally:
+        window.close()
+
+
+def test_route_protocol_replay_retains_problem3_and_comparison_policy(app,monkeypatch):
+    calls=[]
+    config=dict(extra_budget=1,tau_route_s=2.5,candidate_policy='global_q2',problem_id=3)
+    replay=sample_run(problem=3,model='q4_route_v3',route_config=config)
+    def run(scene,output,**kwargs):
+        calls.append((scene.problem,kwargs['candidate_policy']))
+        return replay
+    monkeypatch.setattr(q4_adapter,'run_q4',run)
+    window=ui.Window(ScenarioConfig(problem=4),None);window.timer.stop()
+    try:
+        window.set_run(replay)
+        assert window.config.problem==3 and '第三问 Q3' in window.windowTitle()
+        assert '全域主动测点对照' in window.note.text()
+        assert window.route_budget.currentData()==1 and window.route_tau.value()==2.5
+        window.new.click();wait_worker(app,window)
+        assert calls==[(3,'global_q2')]
+    finally:
+        window.close()
+
+
+@pytest.mark.parametrize('tau',[0.05,250.])
+def test_route_replay_threshold_roundtrip_keeps_cli_precision_and_range(app,monkeypatch,tau):
+    calls=[]
+    replay=sample_run(model='q4_route_v3',route_config=dict(extra_budget=2,tau_route_s=tau,candidate_policy='route',problem_id=4))
+    def run(config,output,**kwargs):
+        calls.append(kwargs['tau_route_s'])
+        return replay
+    monkeypatch.setattr(q4_adapter,'run_q4',run)
+    window=ui.Window(ScenarioConfig(problem=4),None);window.timer.stop()
+    try:
+        window.set_run(replay)
+        assert window.route_tau.value()==tau
+        window.new.click();wait_worker(app,window)
+        assert calls==[tau] and window.route_tau.value()==tau
+    finally:
+        window.close()
+
+
+@pytest.mark.parametrize('problem,budget',[(3,1),(4,2),(4,3)])
+def test_route_cli_passes_problem_budget_and_threshold(monkeypatch,problem,budget):
+    from enhanced.__main__ import main
+    calls=[]
+    def run(config,output,**kwargs):
+        calls.append((config.problem,kwargs['extra_budget'],kwargs['tau_route_s'],kwargs['candidate_policy']))
+        return sample_run(model='q4_route_v3')
+    monkeypatch.setattr(q4_adapter,'run_q4',run)
+    monkeypatch.setattr(sys,'argv',['enhanced','q4','--model','q4_route_v3','--problem',str(problem),
+                                  '--extra-budget',str(budget),'--tau-route','7.5','--candidate-policy','global_q2'])
+    main()
+    assert calls==[(problem,budget,7.5,'global_q2')]
+
+
+@pytest.mark.parametrize('value',['-1','nan','inf'])
+def test_route_cli_rejects_invalid_threshold(monkeypatch,value):
+    from enhanced.__main__ import main
+    monkeypatch.setattr(sys,'argv',['enhanced','q4','--model','q4_route_v3','--tau-route',value])
+    with pytest.raises(SystemExit,match='2'):main()
+
+
+def test_route_gui_completes_actual_model_and_autoplays(app,monkeypatch,tmp_path):
+    monkeypatch.chdir(tmp_path)
+    window=ui.Window(ScenarioConfig(problem=4,seed=47,scenario='boundary-biased',count=10),None)
+    window.timer.stop()
+    errors=[];monkeypatch.setattr(window,'show_error',errors.append)
+    try:
+        window.model.setCurrentIndex(window.model.findData('q4_route_v3'))
+        window.route_budget.setCurrentIndex(window.route_budget.findData(1))
+        window.route_tau.setValue(2.5)
+        window.new.click();wait_worker(app,window,timeout=90)
+        assert errors==[]
+        assert window.run_data['metadata']['completion']=='completed'
+        assert window.run_data['metadata']['model']=='q4_route_v3'
+        assert window.run_data['metadata']['route_config']['extra_budget']==1
+        assert window.run_data['metadata']['route_config']['tau_route_s']==2.5
+        assert window.playing and window.duration>0
+        assert window.run_data['metadata']['route_metrics']
+        assert window.route_budget.currentData()==1 and window.route_tau.value()==2.5
+    finally:
+        if window.worker is not None:
+            window.cancel_simulation();wait_worker(app,window,timeout=90)
         window.close()

@@ -2,6 +2,7 @@
 import math
 import hashlib
 import json
+import threading
 import pytest
 
 from enhanced import q4_adapter
@@ -13,7 +14,7 @@ from enhanced.replay import project,load_run,validate
 
 @pytest.mark.parametrize('model',list(Q4_MODEL_LABELS))
 def test_q4_backend_runs_actual_controller_and_saves_replay(tmp_path,model):
-    cfg=ScenarioConfig(seed=48,error_model='worst_edge')
+    cfg=ScenarioConfig(seed=48,problem=4,error_model='worst_edge')
     progress=[]
     run=run_q4(cfg,tmp_path/'q4',progress=progress.append,model=model)
     assert run['metadata']['problem']==4 and run['metadata']['model']==model
@@ -24,7 +25,7 @@ def test_q4_backend_runs_actual_controller_and_saves_replay(tmp_path,model):
     assert len(final['cleared'])==len(run['sources'])
     assert final['strategy']['available'] and len(final['route_points'])==25
     assert all(p['scan_completed'] for p in final['route_points'])
-    assert all(s['limit']==3 for s in final['strategy']['channel_iterations'].values())
+    assert all(s['limit']==(2 if model=='q4_route_v3' else 3) for s in final['strategy']['channel_iterations'].values())
     snapshots=[e for e in run['events'] if e['type']=='StrategyState']
     assert any(e['data']['q4_decision'] for e in snapshots)
     assert all(e['data']['model']==model for e in snapshots)
@@ -35,6 +36,13 @@ def test_q4_backend_runs_actual_controller_and_saves_replay(tmp_path,model):
         assert run['metadata']['opportunity_stats']==run['summary']['opportunities']
         assert load_run(tmp_path/'q4')['metadata']['opportunity_stats']==run['summary']['opportunities']
         assert json.loads((tmp_path/'q4'/'controller.json').read_text())['opportunities']==run['summary']['opportunities']
+    if model == 'q4_route_v3':
+        saved=json.loads((tmp_path/'q4'/'controller.json').read_text())
+        assert saved['decisions']==json.loads(json.dumps(run['summary']['decisions']))
+        measurements=[d for d in saved['decisions'] if d['event']=='remeasurement']
+        assert measurements and all({'J_hat','extra_move_s','r_k'}<=set(d) for d in measurements)
+        assert run['metadata']['score_runtime']==saved['score_runtime']
+        assert load_run(tmp_path/'q4')['metadata']['route_config']==saved['route_config']
     for name,sha in run['metadata']['source_files_sha256'].items():
         assert hashlib.sha256((CODE/name).read_bytes()).hexdigest() == sha
     assert load_run(tmp_path/'q4')['metadata']['model']==model
@@ -46,7 +54,12 @@ def test_readonly_observer_does_not_change_q4_policy(model):
     cfg=ScenarioConfig(seed=49,problem=4,error_model='worst_edge')
     run=run_q4(cfg,model=model)
     w=World(cfg)
-    controller=_controller_module(model).Controller(ResponseClient(w.request))
+    module=_controller_module(model)
+    if model=='q4_route_v3':
+        module.prepare_runtime()
+        controller=module.Controller(ResponseClient(w.request),seed=cfg.seed,error_mode=cfg.error_model,config=module.RouteConfig(problem_id=cfg.problem))
+    else:
+        controller=module.Controller(ResponseClient(w.request))
     result=controller.run()
     assert result==run['summary']
     physical=[e for e in run['events'] if e['type']!='StrategyState']
@@ -92,3 +105,46 @@ def test_q4_v2_maximum16_success_does_not_invent_absence_or_completed_scans(monk
     assert len(final['cleared'])==16
     assert not any(p['scan_completed'] for p in final['route_points'])
     assert load_run(tmp_path/'sixteen')['metadata']['completion_reason']=='maximum_16_cleared'
+
+
+def test_route_real_rest_and_observer_clear_each_near_source_once(monkeypatch,tmp_path):
+    from enhanced import server as server_module
+    module=_controller_module('q4_route_v3')
+    ready=[]
+    original=module.prepare_runtime
+    def prepare():
+        result=original();ready.append(True);return result
+    monkeypatch.setattr(module,'prepare_runtime',prepare)
+    worlds=[]
+    class NearWorld(World):
+        def __init__(self,config):
+            super().__init__(config)
+            self.sources=[dict(channel=k,x=1.,y=1.,recv_radius=1000.,source_type='directional',orientation=225.) for k in range(1,17)]
+            worlds.append(self)
+        def _request(self,path,payload):
+            if path=='/enter':assert ready,'Scoring warmup must finish before /enter'
+            return super()._request(path,payload)
+    monkeypatch.setattr(server_module,'World',NearWorld)
+    config=ScenarioConfig(problem=4,count=16)
+    server=server_module.make_server(config,port=0,output=tmp_path/'http')
+    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    try:
+        module.prepare_runtime()
+        controller=module.Controller(module.RestClient(f'http://127.0.0.1:{server.server_port}'),
+                                     config=module.RouteConfig(extra_budget=1,tau_route_s=.05))
+        direct=controller.run()
+    finally:
+        server.shutdown();server.server_close();thread.join(timeout=5)
+    assert direct['completed']
+    assert direct['counts']['N_clr']==direct['counts']['N_succ']==16
+    assert direct['counts']['N_meas']==16 and direct['T']==175.
+    assert len([row for row in worlds[0].observations if row['path']=='/clear'])==16
+    ready.clear()
+    monkeypatch.setattr(q4_adapter,'World',NearWorld)
+    observed=run_q4(config,tmp_path/'observed',model='q4_route_v3',extra_budget=1,tau_route_s=.05)
+    assert observed['summary']==direct
+    assert observed['metadata']['score_runtime']==original()
+    assert load_run(tmp_path/'observed')['metadata']['score_runtime']==original()
+    physical=[{k:v for k,v in event.items() if k!='seq'} for event in observed['events'] if event['type']!='StrategyState']
+    assert physical==[{k:v for k,v in event.items() if k!='seq'} for event in worlds[0].events]
+    assert len([event for event in observed['events'] if event['type']=='Clear'])==16

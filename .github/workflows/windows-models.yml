@@ -63,11 +63,12 @@ jobs:
           tests/test_mission_panel.py tests/test_ui.py
           --junitxml=artifacts/windows-model-tests.xml
       # Separate Python process keeps the Q3 archive's cu module out of Q4.
-      - name: Run standalone Q4 v1 and v2 core checks
+      - name: Run standalone Q4 v1, v2, and route v3 core checks
         if: ${{ !cancelled() }}
         run: >-
           .\.venv\Scripts\python.exe -m pytest -q model_sources/q4/test_q4.py
           tests/test_q4_v2.py tests/test_q4_opportunities.py
+          tests/test_route_geometry.py tests/test_route_controller.py
           --junitxml=artifacts/windows-q4-core.xml
       # Official release: https://github.com/actions/upload-artifact/releases/tag/v6.0.0
       - name: Save Windows validation evidence

@@ -139,3 +139,19 @@ def test_q4_v2_missing_opportunities_is_explicit(panel):
     state['strategy'].update(problem=4,model='q4_opportunity_v2')
     panel.update_state(state,[dict(channel=8)],False)
     assert '当前无待执行的认证左右机会' in panel.queue_note.text()
+
+
+def test_route_queue_shows_candidate_location_and_actual_budget(panel):
+    state=state_with_plan()
+    state['strategy'].update(problem=4,model='q4_route_v3',route_config=dict(extra_budget=1,tau_route_s=2.5),
+        tasks=[dict(kind='opportunity',channel=8,position=[100.,250.]),dict(kind='near',channel=4,position=[100.,250.])],
+        opportunities=[dict(channel=8,point=[100.,250.],level='on_route')])
+    state['strategy']['channel_iterations']['8'].update(followups=1,limit=1,directional_confirmed=True)
+    panel.update_state(state,[dict(channel=8)],False)
+    assert panel.queue_table.rows[0][1]=='CH 08 · 顺路复测'
+    assert panel.queue_table.rows[1][1]=='CH 04 · 原地清除'
+    assert '最多追加 1 次' in panel.queue_note.text() and '最多绕路 2.5 秒' in panel.queue_note.text()
+    assert '路线内 (100.0, 250.0)' in panel.queue_note.text()
+    assert '确认定向：1 个频道' in panel.queue_note.text()
+    assert panel.iteration_table.rows[0][1]=='1 / 1'
+    assert '上限 1 次' in panel.iteration_note.text()

@@ -10,6 +10,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import time
 
 from .world import ScenarioConfig, World
 from .runner import ResponseClient, save_run
@@ -20,10 +21,12 @@ CODE = BUNDLED_CODE if (BUNDLED_CODE/'q4.py').is_file() else LEGACY_CODE
 Q4_MODEL_LABELS = {
     'q4_cu': '第四问 · 25 点 C/U · v1.0',
     'q4_opportunity_v2': '第四问 · 左右机会复测 · v2.0',
+    'q4_route_v3': '第四问 · 路径约束机会复测 · v3.0',
 }
 _MODEL_FILES = {
     'q4_cu': ('q4.py', 'cu.py', '第一问.py'),
     'q4_opportunity_v2': ('q4_v2.py', 'opportunities.py', 'q4.py', 'cu.py', '第一问.py'),
+    'q4_route_v3': ('route_opportunistic_remeasure.py', 'q4_v2.py', 'opportunities.py', 'q4.py', 'cu.py', '第一问.py'),
 }
 
 
@@ -31,7 +34,8 @@ def _controller_module(model='q4_cu'):
     if model not in Q4_MODEL_LABELS:
         raise ValueError(f'Unknown Q4 model: {model}')
     source = CODE/_MODEL_FILES[model][0]
-    name = 'jammers_q4_controller' if model == 'q4_cu' else 'jammers_q4_opportunity_v2'
+    name = {'q4_cu':'jammers_q4_controller','q4_opportunity_v2':'jammers_q4_opportunity_v2',
+            'q4_route_v3':'jammers_q4_route_v3'}[model]
     if name not in sys.modules:
         if not source.is_file():
             raise FileNotFoundError(f'找不到第四问模型：{source}。请完整下载包含 model_sources/q4 的模拟器仓库。')
@@ -53,11 +57,20 @@ def search_points():
     return _controller_module().search_points()
 
 
-def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=None,model='q4_cu'):
+def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=None,model='q4_cu',
+           extra_budget=2,tau_route_s=5.,candidate_policy='route'):
+    wall_started,cpu_started=time.perf_counter(),time.process_time()
     module = _controller_module(model)
-    config = replace(config,problem=4)
+    route_model=model=='q4_route_v3'
+    if not route_model:config = replace(config,problem=4)
     report = progress or (lambda value:None)
     should_cancel = cancelled or (lambda:False)
+    route_config=None
+    if route_model:
+        route_config=module.RouteConfig(extra_budget=extra_budget,tau_route_s=tau_route_s,
+                                        candidate_policy=candidate_policy,problem_id=config.problem)
+        report(dict(phase='预热路径复测评分器',action_count=0,virtual_time_s=0.))
+        module.prepare_runtime()
     world = World(config)
     cancel_seen=False
 
@@ -70,7 +83,10 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
 
     class ObservedController(module.Controller):
         def __init__(self,client):
-            super().__init__(client)
+            if route_model:
+                super().__init__(client,seed=config.seed,error_mode=config.error_model,config=route_config)
+            else:
+                super().__init__(client)
             self.phase='starting'
             self.target=None
             self.tasks=[]
@@ -82,7 +98,7 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
         def publish(self):
             completed=self.completed_scans
             opportunity_snapshot=getattr(self,'opportunity_snapshot',lambda:[])
-            snapshot=dict(schema_version=1,available=True,model=model,problem=4,
+            snapshot=dict(schema_version=1,available=True,model=model,problem=config.problem,
                           phase=self.phase,route_name='q4_25_points',
                           route_points=[dict(index=j,position=list(z),scan_completed=j in completed)
                                         for j,z in enumerate(self.Z)],
@@ -91,12 +107,15 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
                           queue_note='按当前状态做最小增量插入；执行下一任务后重新规划。',
                           candidates=[],q4_decision=copy.deepcopy(self.q4_decision),
                           opportunities=copy.deepcopy(opportunity_snapshot()),
+                          route_config=asdict(route_config) if route_config is not None else None,
+                          route_metrics=copy.deepcopy(getattr(self,'source_metrics',{})),
                           anchor_measurements={str(j):sorted(channels) for j,channels
                                                in getattr(self,'M_j',{}).items()},
                           pending_targets=[dict(channel=k,followups=s.followups) for k,s in self.channels.items()
                                            if s.sigma=='FOUND' and (self.target or {}).get('channel')!=k],
                           channel_iterations={str(k):dict(state=s.sigma,followups=s.followups,
-                                                          limit=3,r_k=s.r_k,measurements=self.measurements[k],
+                                                          limit=extra_budget if route_model else 3,r_k=s.r_k,measurements=self.measurements[k],
+                                                          directional_confirmed=k in getattr(self,'directional_confirmed',()),
                                                           scanned=len(s.scanned))
                                               for k,s in self.channels.items()})
             world.emit('StrategyState',**snapshot)
@@ -118,9 +137,26 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
 
         def next_tasks(self):
             result=super().next_tasks()
-            self.tasks=[dict(kind='anchor_scan',anchor_index=key,position=list(self.Z[key]))
-                        if kind=='search' else dict(kind='service',channel=key,position=None)
-                        for kind,key in result]
+            if route_model:
+                self.tasks=[copy.deepcopy(self.task_snapshot(kind,key)) for kind,key in result]
+                for task in self.tasks:
+                    if task['kind']=='search':task['kind']='anchor_scan'
+            else:
+                self.tasks=[dict(kind='anchor_scan',anchor_index=key,position=list(self.Z[key]))
+                            if kind=='search' else dict(kind='service',channel=key,position=None)
+                            for kind,key in result]
+            self.phase='planning'
+            self.publish()
+            return result
+
+        def execute_task(self,kind,key):
+            self.phase='anchor_scan' if kind=='search' else 'service'
+            self.q4_decision=None
+            self.current_anchor=key if kind=='search' else None
+            self.target=copy.deepcopy(self.task_snapshot(kind,key))
+            self.publish()
+            result=super().execute_task(kind,key)
+            self.target=None
             self.phase='planning'
             self.publish()
             return result
@@ -173,8 +209,9 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
     controller.publish()
     completion='cancelled' if cancel_seen else 'completed' if result['completed'] else 'incomplete_unresolved'
     metadata=dict(schema_version=1,**asdict(config),model=model,
-                  strategy='Q4 · 25 点 C/U' if model == 'q4_cu' else 'Q4 · 左右机会复测 · v2.0',
-                  strategy_version='1.1-gui' if model == 'q4_cu' else '2.0',
+                  strategy='Q4 · 25 点 C/U' if model == 'q4_cu' else
+                           'Q4 · 左右机会复测 · v2.0' if not route_model else f'Q{config.problem} · 路径约束机会复测 · v3.0',
+                  strategy_version='1.1-gui' if model == 'q4_cu' else '3.0' if route_model else '2.0',
                   completion=completion,failure=result['failure'],
                   source_files_sha256={name:hashlib.sha256((CODE/name).read_bytes()).hexdigest()
                                        for name in _MODEL_FILES[model]})
@@ -182,6 +219,12 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
         metadata['completion_reason']=result['completion_reason']
     if 'opportunities' in result:
         metadata['opportunity_stats']=copy.deepcopy(result['opportunities'])
+    if route_model:
+        metadata.update(route_config=asdict(route_config),runtime_cpu_s=time.process_time()-cpu_started,
+                        runtime_wall_s=time.perf_counter()-wall_started,
+                        score_runtime=copy.deepcopy(result['score_runtime']))
+        for key in ('route_metrics',):
+            if key in result:metadata[key]=copy.deepcopy(result[key])
     if output is not None:
         save_run(world,output,metadata)
         (Path(output)/'controller.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
