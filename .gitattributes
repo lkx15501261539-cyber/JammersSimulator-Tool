@@ -1,2 +1,5 @@
 # Preserve Windows launcher CRLF in downloaded source archives.
 *.bat -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Frozen Q4 sources must keep their original bytes on every checkout.
+model_sources/q4/* -text

@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/windows-models.yml'
       - '*.bat'
+      - '.gitattributes'
       - 'requirements*.txt'
       - 'enhanced/**'
       - 'model_sources/**'
