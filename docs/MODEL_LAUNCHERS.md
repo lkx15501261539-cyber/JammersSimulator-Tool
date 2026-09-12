@@ -31,3 +31,5 @@ python -m enhanced gui --problem 4 --error-model worst_edge
 两个启动器都支持 `--check-only`：执行相同的环境准备、校验模型并创建 Qt 窗口后退出，不在失败时等待键盘输入。普通双击仍打开可见窗口。脚本只在自己的进程中启用 UTF-8，不改变系统区域或编码设置。
 
 完整 Windows 交付包见 [交付说明](WINDOWS_DELIVERY.md)，包内保留“启动界面.bat”旧名称；过去下载的 ZIP 不会自动更新。
+
+Windows x64 的三个正常启动入口和 54 项模型/接口检查已通过，包含中文与空格路径。详见 [Windows 验证记录](WINDOWS_VALIDATION.md)。

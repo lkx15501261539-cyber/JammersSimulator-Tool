@@ -1,0 +1,70 @@
+{
+  "date": "2026-09-12",
+  "run_url": "https://github.com/lkx15501261539-cyber/JammersSimulator-Tool/actions/runs/34689209732",
+  "commit": "fa73bc857afc53938471aff9116abb93335f2182",
+  "status": "success",
+  "platform": "Windows-2025Server-10.0.26100-SP0",
+  "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "workspace_contains_chinese_and_spaces": true,
+  "simulator_tests_passed": 36,
+  "q4_core_tests_passed": 18,
+  "native_launchers": [
+    {
+      "launcher": "start_q3_v2.bat",
+      "check_only_exit": 0,
+      "visible_window": {
+        "handle": 131528,
+        "pid": 8240,
+        "title": "Jammers Lab · 第三问 Q3 · 七点六边形 · Baseline 2.0",
+        "visible": true,
+        "rect": [
+          0,
+          0,
+          1066,
+          788
+        ]
+      },
+      "normal_exit": 0,
+      "passed": true
+    },
+    {
+      "launcher": "start_q4.bat",
+      "check_only_exit": 0,
+      "visible_window": {
+        "handle": 262550,
+        "pid": 8308,
+        "title": "Jammers Lab · 第四问 Q4 · 25 点 C/U",
+        "visible": true,
+        "rect": [
+          0,
+          0,
+          1066,
+          788
+        ]
+      },
+      "normal_exit": 0,
+      "passed": true
+    },
+    {
+      "launcher": "启动界面.bat",
+      "check_only_exit": 0,
+      "visible_window": {
+        "handle": 721364,
+        "pid": 4064,
+        "title": "Jammers Lab · 第三问 Q3 · 七点六边形 · Baseline 2.0",
+        "visible": true,
+        "rect": [
+          0,
+          0,
+          1066,
+          788
+        ]
+      },
+      "normal_exit": 0,
+      "passed": true
+    }
+  ],
+  "original_model_bytes_preserved": true,
+  "local_delivery_tests_passed": 15,
+  "official_simulator_tested": false
+}
