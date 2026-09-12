@@ -19,6 +19,7 @@ from .playback import advance_playback
 from .mission_panel import MissionPanel
 from .localization_view import LocalizationView
 from .baseline import MODEL_LABELS, default_archive
+from .q4_adapter import Q4_MODEL_LABELS
 
 
 def archive_family(model):
@@ -41,11 +42,11 @@ class SimulationWorker(QThread):
             if self.model == 'q1_demo':
                 from .runner import simulate
                 run = simulate(self.config,directory,self.q1)
-            elif self.model == 'q4_cu':
+            elif self.model in Q4_MODEL_LABELS:
                 from .q4_adapter import run_q4
                 run = run_q4(replace(self.config,problem=4),directory,
                              progress=self.progress.emit,
-                             cancelled=self.isInterruptionRequested)
+                             cancelled=self.isInterruptionRequested,model=self.model)
             else:
                 from .baseline import run_baseline
                 run = run_baseline(self.config,self.archive,self.model,directory,
@@ -76,7 +77,7 @@ class Window(QMainWindow):
         model_row = QHBoxLayout()
         self.model = QComboBox()
         for key,label in MODEL_LABELS.items(): self.model.addItem(label,key)
-        self.model.addItem('第四问 · 25 点 C/U','q4_cu')
+        for key,label in Q4_MODEL_LABELS.items(): self.model.addItem(label,key)
         self.model.addItem('Q1 Integration Demo · 单目标验证','q1_demo')
         self.model.setCurrentIndex(max(0,self.model.findData('q4_cu' if config.problem == 4 else 'hexagon_v1')))
         self.model.setMinimumWidth(265)
@@ -243,14 +244,14 @@ class Window(QMainWindow):
                 self.archive.setText(self._archive_paths.get(family,str(default_archive(model))))
                 self._archive_family = family
             self.archive.setPlaceholderText(f'选择 {MODEL_LABELS[model]} 的交付 ZIP')
-        self.config = replace(self.config,problem=4 if model == 'q4_cu' else 3)
-        self.setWindowTitle('Jammers Lab · 第四问 Q4 · 25 点 C/U' if model == 'q4_cu' else
+        self.config = replace(self.config,problem=4 if model in Q4_MODEL_LABELS else 3)
+        self.setWindowTitle('Jammers Lab · '+Q4_MODEL_LABELS[model].replace('第四问','第四问 Q4',1) if model in Q4_MODEL_LABELS else
                             'Jammers Lab · Q1 单目标验证' if model == 'q1_demo' else
                             f'Jammers Lab · 第三问 Q3 · {MODEL_LABELS.get(model,model)}')
         busy = self.worker is not None and self.worker.isRunning()
         for widget in (self.archive_label,self.archive,self.browse_archive):
             widget.setVisible(baseline)
-        self.current_model_label.setText('当前模型：第四问 · 25 点 C/U' if model == 'q4_cu' else
+        self.current_model_label.setText('当前模型：'+Q4_MODEL_LABELS[model] if model in Q4_MODEL_LABELS else
                                          '当前模型：Q1 单目标验证')
         self.current_model_label.setVisible(not baseline)
         self.archive.setEnabled(baseline and not busy)
@@ -261,7 +262,7 @@ class Window(QMainWindow):
         if self.run_data is not None:return
         state=project([],0)
         model=self.model.currentData()
-        if model == 'q4_cu':
+        if model in Q4_MODEL_LABELS:
             from .q4_adapter import search_points
             state['route_points']=[dict(index=i,position=list(point),visited=False)
                                    for i,point in enumerate(search_points())]
@@ -279,7 +280,11 @@ class Window(QMainWindow):
         metadata = self.run_data['metadata'] if self.run_data else {}
         outcome = metadata.get('completion',metadata.get('outcome'))
         model = self.model.currentData()
-        text = ('第四问 Q4：25 点确定性搜索 + C/U 源任务调度。\n'
+        text = ('第四问 Q4 v2.0：25 点搜索 + 左右机会复测。\n'
+                '利用后续搜索点复测；一侧安全失联时保留已认证的对侧机会。\n'
+                '每源最多追加 3 次；预算耗尽或无可用机会时，光学覆盖 F 收尾。\n'
+                '点击“开始模拟”运行当前模型，可切换 v1.0 对照。' if model == 'q4_opportunity_v2' else
+                '第四问 Q4 v1.0：25 点确定性搜索 + C/U 源任务调度。\n'
                 '混合全向源与定向源；定向背面可能无信号。\n'
                 '后续测向 no_signal → 保存的 U 光学后备，覆盖 F；20 m 内清除。\n'
                 '点击“开始模拟”运行本机 Q4 控制器，无需 Baseline ZIP。' if model == 'q4_cu' else
@@ -290,14 +295,19 @@ class Window(QMainWindow):
                 'Baseline 1.0：保持交付代码原样运行。\n先计算完整任务，再连续播放日志。\n'
                 '图中紫色为 Q1 直径圆；策略清除使用原模型最小包围圆。')
         if metadata:
-            replay_q4 = metadata.get('problem') == 4 or metadata.get('model') == 'q4_cu'
-            text += '\n当前回放：'+('第四问 Q4 · 25 点 C/U' if replay_q4 else str(metadata.get('strategy','已保存任务')))
+            replay_model=metadata.get('model')
+            if replay_model not in Q4_MODEL_LABELS and metadata.get('problem') == 4:
+                replay_model='q4_cu'  # Older Q4 logs did not record a model key.
+            text += '\n当前回放：'+(Q4_MODEL_LABELS[replay_model].replace('第四问','第四问 Q4',1)
+                                   if replay_model in Q4_MODEL_LABELS else str(metadata.get('strategy','已保存任务')))
         if outcome == 'incomplete_unresolved':
             text += '\n本局模型已结束，仍有目标未解决。'
             if metadata.get('unresolved_channels'):
                 text += '\n未解决频道：'+', '.join(map(str,metadata['unresolved_channels']))
         elif outcome == 'cancelled':
             text += '\n本日志为中途停止的部分任务。'
+        elif metadata.get('completion_reason') == 'maximum_16_cleared':
+            text += '\n已清除 16 个频道，达到题设源数量上限，剩余存在性扫描无需继续。'
         self.note.setText(text+'\n触控板双指平移、捏合缩放；也可使用 + / − 和缩放条。')
     def select_archive(self):
         path,_ = QFileDialog.getOpenFileName(self,f'选择 {self.model.currentText()} 交付包',self.archive.text(),
@@ -320,11 +330,11 @@ class Window(QMainWindow):
             self.show_error(f'找不到模型交付压缩包，请选择 {MODEL_LABELS[model]} 的 ZIP 文件。')
             return
         self.playing=False; self.play.setText('▶ 播放')
-        self.progress_label.setText('正在启动第四问 Q4 控制器，计算完成后自动播放。' if model == 'q4_cu' else
+        self.progress_label.setText(f'正在启动 {Q4_MODEL_LABELS[model]}，计算完成后自动播放。' if model in Q4_MODEL_LABELS else
                                     '正在启动原始模型，计算完成后自动播放。复杂场景可能需要数分钟。')
         self.statusBar().showMessage(f'正在计算：{self.model.currentText()} · seed {self.seed.value()}')
         self.worker = SimulationWorker(replace(self.config,seed=self.seed.value(),scenario=self.scenario.currentText(),
-                                               error_model=self.error.currentText(),problem=4 if model == 'q4_cu' else 3),
+                                               error_model=self.error.currentText(),problem=4 if model in Q4_MODEL_LABELS else 3),
                                        self.q1,model,archive,self)
         self.worker.completed.connect(self.simulation_completed)
         self.worker.failed.connect(self.show_error)
@@ -378,8 +388,9 @@ class Window(QMainWindow):
             if run['metadata'].get(key):control.setCurrentText(run['metadata'][key])
         if 'seed' in run['metadata']:self.seed.setValue(run['metadata']['seed'])
         self.play.setText('▶ 播放')
-        model=('q4_cu' if run['metadata'].get('problem') == 4 or run['metadata'].get('model') == 'q4_cu'
-               else run['metadata'].get('baseline_model'))
+        model=run['metadata'].get('model')
+        if model not in Q4_MODEL_LABELS:
+            model='q4_cu' if run['metadata'].get('problem') == 4 else run['metadata'].get('baseline_model')
         if model is None and 'q1' in str(run['metadata'].get('strategy','')).lower(): model='q1_demo'
         index=self.model.findData(model) if model is not None else -1
         if index>=0: self.model.setCurrentIndex(index)

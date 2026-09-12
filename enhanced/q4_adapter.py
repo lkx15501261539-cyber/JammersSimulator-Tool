@@ -17,14 +17,25 @@ from .runner import ResponseClient, save_run
 BUNDLED_CODE = Path(__file__).resolve().parents[1]/'model_sources'/'q4'
 LEGACY_CODE = Path(__file__).resolve().parents[2]/'CUMCM-2026'/'code'
 CODE = BUNDLED_CODE if (BUNDLED_CODE/'q4.py').is_file() else LEGACY_CODE
+Q4_MODEL_LABELS = {
+    'q4_cu': '第四问 · 25 点 C/U · v1.0',
+    'q4_opportunity_v2': '第四问 · 左右机会复测 · v2.0',
+}
+_MODEL_FILES = {
+    'q4_cu': ('q4.py', 'cu.py', '第一问.py'),
+    'q4_opportunity_v2': ('q4_v2.py', 'opportunities.py', 'q4.py', 'cu.py', '第一问.py'),
+}
 
 
-def _controller_module():
-    name = 'jammers_q4_controller'
+def _controller_module(model='q4_cu'):
+    if model not in Q4_MODEL_LABELS:
+        raise ValueError(f'Unknown Q4 model: {model}')
+    source = CODE/_MODEL_FILES[model][0]
+    name = 'jammers_q4_controller' if model == 'q4_cu' else 'jammers_q4_opportunity_v2'
     if name not in sys.modules:
-        if not (CODE/'q4.py').is_file():
-            raise FileNotFoundError(f'找不到第四问模型：{CODE / "q4.py"}。请完整下载包含 model_sources/q4 的模拟器仓库。')
-        spec = importlib.util.spec_from_file_location(name,CODE/'q4.py')
+        if not source.is_file():
+            raise FileNotFoundError(f'找不到第四问模型：{source}。请完整下载包含 model_sources/q4 的模拟器仓库。')
+        spec = importlib.util.spec_from_file_location(name,source)
         module = importlib.util.module_from_spec(spec)
         sys.modules[name]=module
         sys.path.insert(0,str(CODE))
@@ -42,8 +53,8 @@ def search_points():
     return _controller_module().search_points()
 
 
-def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=None):
-    module = _controller_module()
+def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=None,model='q4_cu'):
+    module = _controller_module(model)
     config = replace(config,problem=4)
     report = progress or (lambda value:None)
     should_cancel = cancelled or (lambda:False)
@@ -70,7 +81,8 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
 
         def publish(self):
             completed=self.completed_scans
-            snapshot=dict(schema_version=1,available=True,model='q4_cu',problem=4,
+            opportunity_snapshot=getattr(self,'opportunity_snapshot',lambda:[])
+            snapshot=dict(schema_version=1,available=True,model=model,problem=4,
                           phase=self.phase,route_name='q4_25_points',
                           route_points=[dict(index=j,position=list(z),scan_completed=j in completed)
                                         for j,z in enumerate(self.Z)],
@@ -78,6 +90,9 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
                           tasks=copy.deepcopy(self.tasks),queue_kind='q4',
                           queue_note='按当前状态做最小增量插入；执行下一任务后重新规划。',
                           candidates=[],q4_decision=copy.deepcopy(self.q4_decision),
+                          opportunities=copy.deepcopy(opportunity_snapshot()),
+                          anchor_measurements={str(j):sorted(channels) for j,channels
+                                               in getattr(self,'M_j',{}).items()},
                           pending_targets=[dict(channel=k,followups=s.followups) for k,s in self.channels.items()
                                            if s.sigma=='FOUND' and (self.target or {}).get('channel')!=k],
                           channel_iterations={str(k):dict(state=s.sigma,followups=s.followups,
@@ -93,7 +108,8 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
             self.target=dict(kind='anchor_scan',anchor_index=j,position=list(self.Z[j]))
             self.publish()
             result=super().scan(j)
-            self.completed_scans.add(j)
+            if all(s.sigma!='UNKNOWN' or j in s.scanned for s in self.channels.values()):
+                self.completed_scans.add(j)
             self.tasks=[t for t in self.tasks if not (t['kind']=='anchor_scan' and t['anchor_index']==j)]
             self.target=None
             self.phase='planning'
@@ -111,6 +127,7 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
 
         def service(self,k,b=None):
             self.phase='service'
+            self.q4_decision=None
             self.target=dict(kind='service',channel=k,position=None,role='selected_service')
             self.publish()
             result=super().service(k,b)
@@ -131,8 +148,9 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
             self.publish()
             return result
 
-        def followup(self,*args):
-            result=super().followup(*args)
+        def followup(self,*args,**kwargs):
+            self.q4_decision=None
+            result=super().followup(*args,**kwargs)
             self.publish()
             return result
 
@@ -154,10 +172,16 @@ def run_q4(config=ScenarioConfig(problem=4),output=None,progress=None,cancelled=
     controller.tasks=[]
     controller.publish()
     completion='cancelled' if cancel_seen else 'completed' if result['completed'] else 'incomplete_unresolved'
-    metadata=dict(schema_version=1,**asdict(config),model='q4_cu',strategy='Q4 · 25 点 C/U',
-                  strategy_version='1.1-gui',completion=completion,failure=result['failure'],
+    metadata=dict(schema_version=1,**asdict(config),model=model,
+                  strategy='Q4 · 25 点 C/U' if model == 'q4_cu' else 'Q4 · 左右机会复测 · v2.0',
+                  strategy_version='1.1-gui' if model == 'q4_cu' else '2.0',
+                  completion=completion,failure=result['failure'],
                   source_files_sha256={name:hashlib.sha256((CODE/name).read_bytes()).hexdigest()
-                                       for name in ('q4.py','cu.py','第一问.py')})
+                                       for name in _MODEL_FILES[model]})
+    if 'completion_reason' in result:
+        metadata['completion_reason']=result['completion_reason']
+    if 'opportunities' in result:
+        metadata['opportunity_stats']=copy.deepcopy(result['opportunities'])
     if output is not None:
         save_run(world,output,metadata)
         (Path(output)/'controller.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')

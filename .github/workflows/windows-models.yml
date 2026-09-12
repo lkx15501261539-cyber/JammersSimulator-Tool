@@ -53,19 +53,21 @@ jobs:
           New-Item -ItemType Directory -Force artifacts | Out-Null
       - name: Run launchers and verify visible native windows
         run: .\.venv\Scripts\python.exe tools/windows_smoke.py --output artifacts/windows-launchers.json
-      - name: Run simulator and Q3 v2 checks
+      - name: Run simulator, delivery, and model interface checks
         if: ${{ !cancelled() }}
         run: >-
           .\.venv\Scripts\python.exe -m pytest -q
           tests/test_model_launchers.py tests/test_baseline_v2.py
           tests/test_baseline_v2_ui.py tests/test_q4_ui.py
-          tests/test_q4_adapter.py
+          tests/test_q4_adapter.py tests/test_delivery.py
+          tests/test_mission_panel.py tests/test_ui.py
           --junitxml=artifacts/windows-model-tests.xml
       # Separate Python process keeps the Q3 archive's cu module out of Q4.
-      - name: Run standalone Q4 core checks
+      - name: Run standalone Q4 v1 and v2 core checks
         if: ${{ !cancelled() }}
         run: >-
           .\.venv\Scripts\python.exe -m pytest -q model_sources/q4/test_q4.py
+          tests/test_q4_v2.py tests/test_q4_opportunities.py
           --junitxml=artifacts/windows-q4-core.xml
       # Official release: https://github.com/actions/upload-artifact/releases/tag/v6.0.0
       - name: Save Windows validation evidence

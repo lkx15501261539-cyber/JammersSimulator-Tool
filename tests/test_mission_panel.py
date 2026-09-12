@@ -114,3 +114,28 @@ def test_recorded_text_is_escaped_in_rich_text_readout(panel):
     panel.queue_table.set_rows([['1',value,'待规划']],['#476682'])
     assert value in panel.queue_table.toPlainText()
     assert '<img ' not in panel.queue_table.toHtml()
+
+
+def test_q4_v2_opportunities_display_exact_anchors_and_guaranteed_side(panel):
+    state=state_with_plan()
+    state['strategy'].update(problem=4,model='q4_opportunity_v2',
+        opportunities=[dict(channel=8,left=1,right=7,guaranteed_anchor=7)],
+        anchor_measurements={'1':[8], '7':[8,12]})
+    state['strategy']['tasks'].append(dict(kind='anchor_scan',anchor_index=7,position=[100.,200.]))
+    panel.update_state(state,[dict(channel=8)],False)
+    assert '第四问 v2.0：左右机会复测' in panel.queue_note.text()
+    assert 'CH 08 · 左 P2 / 右 P8 · 已保证对侧 P8' in panel.queue_note.text()
+    assert panel.queue_table.rows[1][1] == '固定点 P2 扫描 · 复测 CH 08'
+    assert panel.queue_table.rows[3][1] == '固定点 P8 扫描 · 复测 CH 08, CH 12'
+    # Loading an old run must clear all newer-version explanations.
+    state['strategy']['model']='q4_cu'
+    panel.update_state(state,[dict(channel=8)],False)
+    assert '左右机会' not in panel.queue_note.text()
+    assert panel.queue_table.rows[1][1] == '固定点 P2 扫描'
+
+
+def test_q4_v2_missing_opportunities_is_explicit(panel):
+    state=state_with_plan()
+    state['strategy'].update(problem=4,model='q4_opportunity_v2')
+    panel.update_state(state,[dict(channel=8)],False)
+    assert '当前无待执行的认证左右机会' in panel.queue_note.text()

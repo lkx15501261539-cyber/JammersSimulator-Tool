@@ -133,7 +133,8 @@ class MissionPanel(QWidget):
 
     def update_state(self,state,sources,show_truth):
         strategy=state.get('strategy') or {}
-        is_q4=strategy.get('problem')==4 or strategy.get('model')=='q4_cu'
+        is_q4=strategy.get('problem')==4 or strategy.get('model') in ('q4_cu','q4_opportunity_v2')
+        is_opportunity=strategy.get('model')=='q4_opportunity_v2'
         is_v2=strategy.get('model')=='hexagon_v2' or strategy.get('version')=='baseline-v2.0'
         self.time.setText(f"{state['time']:.1f} s")
         self.cleared.setText(f"{len(state['cleared'])} / {len(sources)}")
@@ -149,7 +150,13 @@ class MissionPanel(QWidget):
                                    if points else '固定点信息未记录')
         rows=[]
         for i,task in enumerate(strategy.get('tasks',[]),1):
-            rows.append([str(i),task_name(task),coordinates(task.get('position'))])
+            name=task_name(task)
+            if is_opportunity and task.get('kind')=='anchor_scan':
+                j=task.get('anchor_index')
+                channels=strategy.get('anchor_measurements',{}).get(str(j),[])
+                if channels:
+                    name+=' · 复测 '+', '.join(f'CH {k:02d}' for k in channels)
+            rows.append([str(i),name,coordinates(task.get('position'))])
         self.fill_table(self.queue_table,rows,['#476682']*len(rows))
         if not strategy.get('available'):
             self.queue_note.setText('旧日志缺少队列记录；重新开始模拟即可记录。')
@@ -158,9 +165,21 @@ class MissionPanel(QWidget):
             pending_channels=[p.get('channel') if isinstance(p,dict) else p for p in pending]
             pending_text='、'.join(f'CH {c:02d}' for c in pending_channels if c is not None)
             kind=strategy.get('queue_kind')
-            explanation=('第四问：最小增量插入，执行下一任务后重新规划。' if is_q4 else
+            explanation=('第四问 v2.0：左右机会复测 + 有限前移，执行下一任务后重新规划。' if is_opportunity else
+                         '第四问：最小增量插入，执行下一任务后重新规划。' if is_q4 else
                          'Baseline 2.0：最小增量插入 + 两轮任务 2-opt；允许连续源任务。' if is_v2 else
                          '尾扫按原模型发现顺序执行。' if kind=='tail' else '每段最多优先处理 1 个目标，其余固定点保持顺序。')
+            if is_opportunity:
+                pairs=strategy.get('opportunities',[])
+                for pair in pairs[:3]:
+                    explanation+=f"\nCH {pair['channel']:02d} · 左 P{pair['left']+1} / 右 P{pair['right']+1}"
+                    guaranteed=pair.get('guaranteed_anchor')
+                    if guaranteed is not None:
+                        explanation+=f" · 已保证对侧 P{guaranteed+1}"
+                if len(pairs)>3:
+                    explanation+=f'\n另有 {len(pairs)-3} 个左右机会，按队列执行。'
+                if not pairs:
+                    explanation+='\n当前无待执行的认证左右机会。'
             self.queue_note.setText(explanation+ ('\n待调度：'+pending_text if pending_text else ''))
         decision=strategy.get('q4_decision') if is_q4 else strategy.get('cu_decision') if is_v2 else None
         self.q4_cost.setVisible(bool(decision))

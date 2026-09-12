@@ -16,12 +16,15 @@ V2_ARCHIVE = 'Baseline_v2.0_七点六边形.zip'
 # These files must also be included before their first Git commit.
 DELIVERY_FILES = {'tools/build_delivery.py', 'tests/test_delivery.py',
                   'docs/WINDOWS_DELIVERY.md', 'Windows启动说明.txt',
-                  'start_q4.command', 'Mac启动说明.txt'}
+                  'start_q4.command', 'Mac启动说明.txt',
+                  'start_q4_v2.command', 'start_q4_v2.bat', 'docs/Q4_V2.md',
+                  'model_sources/q4/q4_v2.py', 'model_sources/q4/opportunities.py',
+                  'tests/test_q4_v2.py', 'tests/test_q4_opportunities.py'}
 ROOT_FILES = {'README.md', 'ENHANCED.md', 'COMPATIBILITY.md', 'LICENSE',
               'cli.py', 'mcp_server.py', 'mock_simulator.py', 'simulator_client.py',
               'requirements.txt', 'requirements-enhanced.txt', 'requirements-q3-v2.txt',
               'start_q3_v2.bat', 'start_q4.bat', '启动界面.bat', '启动界面.command',
-              'start_q4.command', 'Mac启动说明.txt',
+              'start_q4.command', 'start_q4_v2.command', 'start_q4_v2.bat', 'Mac启动说明.txt',
               'Windows启动说明.txt', '.gitattributes', '.gitignore'}
 SOURCE_DIRS = {'enhanced', 'assets', 'docs', 'examples', 'model_sources',
                'references', 'skills', 'tests', 'tools'}
@@ -148,6 +151,7 @@ def build_delivery(output, *, source=ROOT, v1_archive=None, demo_run=None):
             raise ValueError('The optional demo must be a completed Q3 v2.0 replay')
     manifest = {'schema_version': 1, 'package': PACKAGE,
                 'contains_v1': f'models/{V1_ARCHIVE}' in contents,
+                'q4_models': ['q4_cu', 'q4_opportunity_v2'],
                 'contains_q3_v2_demo': 'examples/q3-v2-demo/events.jsonl' in contents,
                 'files': {name: {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
                           for name, data in sorted(contents.items())}}

@@ -1,10 +1,12 @@
 #!/bin/zsh
-# Q3 v2 by default; start_q4.command selects the shared Q4 path.
+# Q3 v2 by default; the Q4 wrappers select a version using this same environment.
 typeset -i jammers_problem=3 jammers_check_only=0
+jammers_model=hexagon_v2
 typeset -a jammers_gui_args=()
 while (( $# )); do
   case "$1" in
-    --q4) jammers_problem=4 ;;
+    --q4) jammers_problem=4; jammers_model=q4_cu ;;
+    --q4-v2) jammers_problem=4; jammers_model=q4_opportunity_v2 ;;
     --check-only) jammers_check_only=1 ;;
     --) shift; jammers_gui_args+=("$@"); break ;;
     *) jammers_gui_args+=("$1") ;;
@@ -34,6 +36,10 @@ export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 if (( jammers_problem == 4 )); then
   [[ -f model_sources/q4/q4.py && -f model_sources/q4/cu.py ]] || \
     jammers_fail 1 '缺少 model_sources/q4 模型文件，请完整解压模拟器。'
+  if [[ "$jammers_model" == q4_opportunity_v2 ]]; then
+    [[ -f model_sources/q4/q4_v2.py && -f model_sources/q4/opportunities.py ]] || \
+      jammers_fail 1 '缺少 Q4 v2.0 机会复测模型文件，请完整解压新版模拟器。'
+  fi
 else
   [[ -f 'models/Baseline_v2.0_七点六边形.zip' && -f requirements-q3-v2.txt ]] || \
     jammers_fail 1 '缺少 Q3 v2.0 模型包或依赖清单，请完整解压模拟器。'
@@ -110,12 +116,13 @@ if ! jammers_check_dependencies >/dev/null 2>&1; then
 fi
 
 if (( jammers_check_only )); then
-  "$jammers_python" - "$jammers_problem" <<'PY'
+  "$jammers_python" - "$jammers_problem" "$jammers_model" <<'PY'
 import sys
 problem = int(sys.argv[1])
+selected_model = sys.argv[2]
 if problem == 4:
     from enhanced.q4_adapter import _controller_module
-    model = _controller_module()
+    model = _controller_module(model=selected_model)
     assert model.discovery_certificate(model.search_points())['passed']
 else:
     from enhanced.baseline import default_archive, prepare_model
@@ -126,18 +133,17 @@ from enhanced.world import ScenarioConfig
 from enhanced.strategy import DEFAULT_Q1
 app = QApplication(['launcher-check', '-platform', 'offscreen'])
 w = Window(ScenarioConfig(problem=problem, error_model='worst_edge' if problem == 4 else 'baseline_fixed_field'), DEFAULT_Q1)
-if problem == 3:
-    w.model.setCurrentIndex(w.model.findData('hexagon_v2'))
+w.model.setCurrentIndex(w.model.findData(selected_model))
 w.show()
 app.processEvents()
-assert w.model.currentData() == ('q4_cu' if problem == 4 else 'hexagon_v2')
+assert w.model.currentData() == selected_model
 w.close()
-print(f'PASS: Q{problem} model and desktop window')
+print(f'PASS: {selected_model} model and desktop window')
 PY
 else
   if (( jammers_problem == 4 )); then
-    print -r -- '打开第四问：25 点 C/U 模型。'
-    "$jammers_python" -m enhanced gui --problem 4 --error-model worst_edge "${jammers_gui_args[@]}"
+    print -r -- "打开第四问模型：$jammers_model"
+    "$jammers_python" -m enhanced gui --problem 4 --model "$jammers_model" --error-model worst_edge "${jammers_gui_args[@]}"
   else
     print -r -- '打开第三问：七点六边形 Baseline 2.0。'
     "$jammers_python" -m enhanced gui --model hexagon_v2 --error-model baseline_fixed_field "${jammers_gui_args[@]}"

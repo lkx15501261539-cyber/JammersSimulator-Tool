@@ -1,4 +1,6 @@
-> **本分支模型模拟入口：** Q3 七点六边形 **Baseline 2.0**、Q3 两个 v1.0 模型及 Q4 **25 点 C/U**。v2.0 原始交付 ZIP 与 Q4 运行源码随本分支提供。Windows 完整解压后双击 `启动界面.bat`（默认 Q3 v2.0），或 `start_q4.bat`；其他平台见 [模型安装与启动](docs/MODEL_LAUNCHERS.md) 和 [v2.0 接入说明](docs/BASELINE_V2_INTEGRATION.md)。
+> **本分支统一模拟器含 5 个正式模型：** Q3 七点六边形 **Baseline 2.0**、Q3 六边形与螺旋两个 v1.0 模型、Q4 **25 点 C/U v1.0**、Q4 **左右机会复测 v2.0**，可在同一窗口的模型菜单切换。Q3 v2.0 原始交付 ZIP 与 Q4 两个版本的运行源码随本分支提供；两个 Q3 v1.0 模型需要原始两模型 ZIP，本次完整交付包已附带。
+>
+> Windows 双击 `启动界面.bat`（默认 Q3 v2.0）、`start_q4.bat`（Q4 v1.0）或 `start_q4_v2.bat`（Q4 v2.0）；Mac 使用对应的 `启动界面.command`、`start_q4.command`、`start_q4_v2.command`。新包为 `JammersLab_Q3v2_Q4v1_v2_Mac_Windows_20260912.zip`，解压根目录仍为 `JammersLab_Q3v2_Q4`。详见 [模型安装与启动](docs/MODEL_LAUNCHERS.md)、[统一交付说明](docs/WINDOWS_DELIVERY.md)、[Q3 v2.0 接入说明](docs/BASELINE_V2_INTEGRATION.md) 和 [Q4 v2.0 说明](docs/Q4_V2.md)。
 >
 > 此 fork 的 `enhanced-mock` 分支包含用户授权加入的数学模型及自建模拟验证；下方原始 CLI/MCP 项目介绍中的“通用驱动”范围不适用于这些新增模型。自建模拟结果不代表官方演练结果。
 

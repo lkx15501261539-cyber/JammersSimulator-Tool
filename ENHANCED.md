@@ -17,7 +17,8 @@ This replay works without the adjacent Q1 repository.
 
 在模型菜单选择 **七点六边形 · Baseline 2.0**，对应 ZIP 自动切换为本仓库自带的
 `models/Baseline_v2.0_七点六边形.zip`。原始源码、配置和交付校验表保持不变；
-保留 v1.0 六边形、v1.0 螺旋及 Q4 的独立入口。
+保留 v1.0 六边形、v1.0 螺旋及 Q4 v1.0、Q4 v2.0 的独立入口。这 5 个正式模型
+可在同一窗口切换；额外的 Q1 集成演示不计入正式模型数量。
 
 ```sh
 python -m pip install -r requirements-q3-v2.txt
@@ -249,8 +250,12 @@ Qt view do not need modification to evaluate a new policy through the runner.
 
 `python3 -m enhanced serve --problem 4 --seed 47 --error-model worst_edge --port 2027 --output runs/q4-47`
 
-新增 `--problem 4` 生成可复现的全向/定向混合场景，定向源的发射朝向固定但对客户端不可见。默认 `--problem 3` 保持原场景与接口兼容。Q4 可使用 `python3 -m enhanced gui --problem 4` 直接打开界面，选择“第四问 · 25 点 C/U”并开始模拟；也可使用 serve + 本仓库 `model_sources/q4/q4.py` 客户端。模型来源见 `model_sources/q4/README.md`，启动方式见 `docs/MODEL_LAUNCHERS.md`。
+新增 `--problem 4` 生成可复现的全向/定向混合场景，定向源的发射朝向固定但对客户端不可见。默认 `--problem 3` 保持原场景与接口兼容。`python3 -m enhanced gui --problem 4` 默认打开 Q4 v1.0，选择“第四问 · 25 点 C/U · v1.0”并开始模拟；Q4 v2.0 使用 `python3 -m enhanced gui --problem 4 --model q4_opportunity_v2`，对应“第四问 · 左右机会复测 · v2.0”。也可使用 serve + 本仓库 `model_sources/q4/q4.py`（v1）或 `model_sources/q4/q4_v2.py`（v2）客户端。共享模型来源见 `model_sources/q4/README.md`，Q4 v2 的范围及对照结果见 [Q4 v2 说明](docs/Q4_V2.md)，启动方式见 `docs/MODEL_LAUNCHERS.md`。
 
 定向源在 180° 闭半平面及接收半径内返回 direction/near；背面即使很近也可 no_signal。与源完全重合时零向量在所有闭半平面内。20 m 光学清除与朝向无关，clear 不改变无线电频道。
 
-Windows Q4：在本仓库双击 `start_q4.bat`；下载本分支即可使用自带的 Q4 运行源码。首次需要已安装 64 位 Python 3.10+ 并联网准备 PySide6。Q4 模式隐藏旧 Baseline ZIP 控件，Q3 模式保留；Windows 启动脚本仅做过静态检查，未在本次 macOS 主机上运行。
+Windows Q4：双击 `start_q4.bat` 打开 v1.0，`start_q4_v2.bat` 打开 v2.0；Mac 对应 `start_q4.command` 和 `start_q4_v2.command`。下载本分支即可使用自带的 Q4 运行源码。首次需要已安装 64 位 Python 3.10+ 并联网准备 PySide6。Q4 模式隐藏旧 Baseline ZIP 控件，Q3 模式保留。历史 Windows v1 验证见 [验证记录](docs/WINDOWS_VALIDATION.md)，该记录不代表新增 v2 已在 Windows 验证。
+
+最新完整包为 `JammersLab_Q3v2_Q4v1_v2_Mac_Windows_20260912.zip`，解压后进入
+`JammersLab_Q3v2_Q4` 文件夹；旧压缩包和旧文件夹不会自动获得新模型。
+平台入口及重新打包方式见 [统一交付说明](docs/WINDOWS_DELIVERY.md)。

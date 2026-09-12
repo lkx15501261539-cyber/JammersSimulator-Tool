@@ -1,0 +1,544 @@
+{
+  "schema_version": 1,
+  "error_rule": "worst_edge: deterministic bounded ±2 degrees",
+  "timing_formula": "L_move/5+N_sw+5*N_meas+3*N_clr+2*N_succ",
+  "source_files_sha256": {
+    "q4_v2.py": "0c3d3feccc09d1fdc53e20d54056fd04bc41489c0014a83e16befec23b0cb995",
+    "opportunities.py": "b589fc7863ee1a6867973fec85799cd368ed8650518b0565cdae2700859bddac",
+    "q4.py": "1f9d99d98bee13b5cd617b6465f826a3a2576d21a93103b0573119ad62715624",
+    "cu.py": "fe28ec8bc5eb6df0ca5a05811327b31372c7d2787d24765550bdb5bf42492fb9",
+    "第一问.py": "2456a59a084a8e0d5e06619d772ed96038840a69fd78140009a7dcb804bb9deb"
+  },
+  "rows": [
+    {
+      "config": {
+        "seed": 42,
+        "scenario": "uniform",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 15770.212334739826,
+          "counts": {
+            "L_move": 59276.06167369913,
+            "N_sw": 170,
+            "N_meas": 194,
+            "N_clr": 915,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 1.0914519170182757
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 16306.775307253813,
+          "counts": {
+            "L_move": 60713.87653626906,
+            "N_sw": 165,
+            "N_meas": 189,
+            "N_clr": 1008,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.3599723340012133
+        }
+      },
+      "world_sha256": "b874a8cc4e35d5ae5fcf3d9eb51c0edda519c087613b0346a291353b32cea5e1",
+      "v2_time_change_percent": 3.402382676433624
+    },
+    {
+      "config": {
+        "seed": 47,
+        "scenario": "uniform",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 14372.662947940948,
+          "counts": {
+            "L_move": 52248.314739704736,
+            "N_sw": 244,
+            "N_meas": 269,
+            "N_clr": 770,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 0.9876416670158505
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 15933.41033578914,
+          "counts": {
+            "L_move": 57292.0516789457,
+            "N_sw": 248,
+            "N_meas": 273,
+            "N_clr": 946,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.207978833001107
+        }
+      },
+      "world_sha256": "eca4c7fff00e3f789f1700833c1b6d1a132c622055001430e5be9d6cfb2a8ea2",
+      "v2_time_change_percent": 10.859138584835382
+    },
+    {
+      "config": {
+        "seed": 42,
+        "scenario": "center-biased",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 16383.512973407032,
+          "counts": {
+            "L_move": 62692.56486703516,
+            "N_sw": 128,
+            "N_meas": 153,
+            "N_clr": 974,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 1.1830546669953037
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 17016.232979026965,
+          "counts": {
+            "L_move": 64866.164895134825,
+            "N_sw": 126,
+            "N_meas": 151,
+            "N_clr": 1044,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.212296041980153
+        }
+      },
+      "world_sha256": "8106edceabf85804f7324172ca96f358f7d38330f9b1ea091ce86baa555c1a32",
+      "v2_time_change_percent": 3.861931239331473
+    },
+    {
+      "config": {
+        "seed": 47,
+        "scenario": "center-biased",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 15388.77212510526,
+          "counts": {
+            "L_move": 55258.8606255263,
+            "N_sw": 225,
+            "N_meas": 250,
+            "N_clr": 946,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 1.02664475000347
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 13820.457326821506,
+          "counts": {
+            "L_move": 52052.286634107535,
+            "N_sw": 223,
+            "N_meas": 248,
+            "N_clr": 641,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.0214243340014946
+        }
+      },
+      "world_sha256": "584de31b0e09d9efb449995d2a31c9a14486d85d584d4cd402e3979794e7662e",
+      "v2_time_change_percent": -10.19129262252967
+    },
+    {
+      "config": {
+        "seed": 42,
+        "scenario": "boundary-biased",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 17463.277183988386,
+          "counts": {
+            "L_move": 63996.385919941924,
+            "N_sw": 195,
+            "N_meas": 220,
+            "N_clr": 1113,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 1.0668937079899479
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 14323.733165539883,
+          "counts": {
+            "L_move": 51893.66582769941,
+            "N_sw": 215,
+            "N_meas": 239,
+            "N_clr": 835,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.1755913750093896
+        }
+      },
+      "world_sha256": "c39c09abded6c34d010456a6c5b673dea3b611f26ce66a2da5b8786494a73545",
+      "v2_time_change_percent": -17.977977359982965
+    },
+    {
+      "config": {
+        "seed": 47,
+        "scenario": "boundary-biased",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 14129.876271355757,
+          "counts": {
+            "L_move": 50209.38135677879,
+            "N_sw": 278,
+            "N_meas": 303,
+            "N_clr": 757,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 0.8890751250146423
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 13321.179621173436,
+          "counts": {
+            "L_move": 48625.89810586718,
+            "N_sw": 254,
+            "N_meas": 279,
+            "N_clr": 641,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.034248708980158
+        }
+      },
+      "world_sha256": "5dbfcc5941d944043361e8710186cddde7be7b8f1728f4bc2d63da0ce1b694b6",
+      "v2_time_change_percent": -5.723310202097942
+    },
+    {
+      "config": {
+        "seed": 42,
+        "scenario": "clustered",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 15513.586482288378,
+          "counts": {
+            "L_move": 58582.932411441885,
+            "N_sw": 122,
+            "N_meas": 147,
+            "N_clr": 970,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 1.1886308749963064
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 16566.09178352722,
+          "counts": {
+            "L_move": 63665.4589176361,
+            "N_sw": 120,
+            "N_meas": 145,
+            "N_clr": 986,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.2407214580161963
+        }
+      },
+      "world_sha256": "0920461d7e9549e642068de604b5bd58fb5fb1a217394dbc574d4b3369b4915f",
+      "v2_time_change_percent": 6.784409926360158
+    },
+    {
+      "config": {
+        "seed": 47,
+        "scenario": "clustered",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 13654.191656979307,
+          "counts": {
+            "L_move": 50305.95828489654,
+            "N_sw": 204,
+            "N_meas": 229,
+            "N_clr": 740,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 1.0660517500073183
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 13675.884197315618,
+          "counts": {
+            "L_move": 50789.42098657809,
+            "N_sw": 201,
+            "N_meas": 226,
+            "N_clr": 721,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.1681243749917485
+        }
+      },
+      "world_sha256": "0a39c332f994656a3784daa2b1cf45fa23bbae61e2037f4cf8398bc00bcdd1fc",
+      "v2_time_change_percent": 0.15887092316608786
+    },
+    {
+      "config": {
+        "seed": 42,
+        "scenario": "repulsive",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 16884.3220122777,
+          "counts": {
+            "L_move": 62886.6100613885,
+            "N_sw": 178,
+            "N_meas": 203,
+            "N_clr": 1028,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 1.137248457991518
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 15942.959906910888,
+          "counts": {
+            "L_move": 59884.79953455444,
+            "N_sw": 172,
+            "N_meas": 196,
+            "N_clr": 928,
+            "N_succ": 15
+          },
+          "cleared": 15,
+          "source_count": 15,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.2486247089982498
+        }
+      },
+      "world_sha256": "3501363232d5dd3b34569ea6d61b724788e4654c5cce199a6fd5a45310051f73",
+      "v2_time_change_percent": -5.575362189149702
+    },
+    {
+      "config": {
+        "seed": 47,
+        "scenario": "repulsive",
+        "count": null,
+        "error_model": "worst_edge",
+        "min_separation": 250.0,
+        "problem": 4
+      },
+      "models": {
+        "q4_cu": {
+          "completed": true,
+          "T": 16550.531741870513,
+          "counts": {
+            "L_move": 59207.65870935256,
+            "N_sw": 256,
+            "N_meas": 281,
+            "N_clr": 1008,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": null,
+          "wall_seconds": 1.0051707919919863
+        },
+        "q4_opportunity_v2": {
+          "completed": true,
+          "T": 15712.928066322336,
+          "counts": {
+            "L_move": 58529.64033161168,
+            "N_sw": 246,
+            "N_meas": 271,
+            "N_clr": 794,
+            "N_succ": 12
+          },
+          "cleared": 12,
+          "source_count": 12,
+          "completion_reason": "all_channels_resolved",
+          "opportunities": {
+            "opportunities_registered": 0,
+            "opportunity_measurements": 0,
+            "safe_no_signal": 0,
+            "guaranteed_measurements": 0,
+            "direct_clears": 0,
+            "promotions": 0
+          },
+          "wall_seconds": 1.0746052079775836
+        }
+      },
+      "world_sha256": "dd804e57a6e45f359e583dea55d0d42364d63bf5b7fbe8d120a62853beb7e749",
+      "v2_time_change_percent": -5.060886795734532
+    }
+  ]
+}

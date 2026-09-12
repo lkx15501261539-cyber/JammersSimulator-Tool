@@ -85,12 +85,16 @@ def test_existing_desktop_shortcut_selects_v2_and_forwards_check_flag():
     assert 'if /i not "%~1"=="--check-only" pause\nexit /b 1' in script
 
 
-@pytest.mark.parametrize('name', ['start_q3_v2.bat', 'start_q4.bat'])
-def test_launcher_probe_builds_selected_desktop_and_validates_model(name):
+@pytest.mark.parametrize('name,section', [
+    ('start_q3_v2.bat', 'check_only'),
+    ('start_q4.bat', 'check_only'),
+    ('start_q4.bat', 'check_only_v2'),
+])
+def test_launcher_probe_builds_selected_desktop_and_validates_model(name, section):
     # Run the exact probe embedded in the BAT on any platform. Execution of
     # cmd.exe and the normal visible Windows window are separate validation.
     script = (ROOT / name).read_text(encoding='ascii')
-    block = script.split('\n:check_only\n', 1)[1].split('\n:success\n', 1)[0]
+    block = script.split(f'\n:{section}\n', 1)[1].split('\n:success\n', 1)[0]
     command = next(line for line in block.splitlines()
                    if line.startswith('".venv\\Scripts\\python.exe" -c "'))
     code = command.split(' -c "', 1)[1][:-1]
@@ -101,7 +105,8 @@ def test_launcher_probe_builds_selected_desktop_and_validates_model(name):
 
 
 @pytest.mark.skipif(os.name != 'nt', reason='Requires Windows cmd.exe')
-@pytest.mark.parametrize('name', ['start_q3_v2.bat', 'start_q4.bat', '启动界面.bat'])
+@pytest.mark.parametrize('name', ['start_q3_v2.bat', 'start_q4.bat',
+                                  'start_q4_v2.bat', '启动界面.bat'])
 def test_windows_missing_files_exits_without_waiting_for_input(tmp_path, name):
     folder = tmp_path / '中文 path with spaces'
     folder.mkdir()
@@ -111,3 +116,61 @@ def test_windows_missing_files_exits_without_waiting_for_input(tmp_path, name):
                             cwd=tmp_path, capture_output=True, timeout=15)
     assert result.returncode == 1
     assert b'not found' in result.stdout
+
+
+def test_q4_v2_windows_wrapper_reuses_environment_and_preserves_check_flag():
+    raw = (ROOT / 'start_q4_v2.bat').read_bytes()
+    assert b'\r\n' in raw and b'\n' not in raw.replace(b'\r\n', b'')
+    script = raw.decode('ascii')
+    assert 'call "%~dp0start_q4.bat" --v2 %*\r\nexit /b %errorlevel%' in script
+    assert 'if /i not "%~1"=="--check-only" pause' in script
+    shared = (ROOT / 'start_q4.bat').read_text(encoding='ascii')
+    assert 'set "_q4_version=2"\n  shift' in shared
+    assert 'gui --problem 4 --model q4_opportunity_v2' in shared
+    assert "_controller_module(model='q4_opportunity_v2')" in shared
+
+
+@pytest.mark.skipif(shutil.which('zsh') is None, reason='Requires zsh')
+@pytest.mark.parametrize('name', ['启动界面.command', 'start_q4.command', 'start_q4_v2.command'])
+def test_mac_launcher_syntax(name):
+    result = subprocess.run(['zsh', '-n', str(ROOT / name)],
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(shutil.which('zsh') is None, reason='Requires zsh')
+@pytest.mark.parametrize('name', ['start_q4.command', 'start_q4_v2.command'])
+def test_mac_wrapper_missing_shared_launcher_returns_error_without_prompt(tmp_path, name):
+    folder = tmp_path / '中文 path with spaces'
+    folder.mkdir()
+    target = folder / name
+    shutil.copyfile(ROOT / name, target)
+    result = subprocess.run(['zsh', str(target), '--check-only'], cwd=tmp_path,
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 1
+    assert '缺少共用启动文件' in result.stderr
+
+
+@pytest.mark.skipif(shutil.which('zsh') is None, reason='Requires zsh')
+def test_mac_q4_v2_probe_selects_exact_model():
+    environment = os.environ.copy()
+    environment['JAMMERS_PYTHON'] = sys.executable
+    result = subprocess.run(['zsh', str(ROOT / 'start_q4_v2.command'), '--check-only'],
+                            cwd=ROOT.parent, env=environment,
+                            capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'PASS: q4_opportunity_v2 model and desktop window' in result.stdout
+
+
+def test_windows_native_window_probe_distinguishes_q4_versions():
+    from tools.windows_smoke import LAUNCHERS, matches_model_title
+    launchers = dict(LAUNCHERS)
+    assert set(launchers) == {'start_q3_v2.bat', 'start_q4.bat',
+                              'start_q4_v2.bat', '启动界面.bat'}
+    v1 = 'Jammers Lab · 第四问 Q4 · 25 点 C/U · v1.0'
+    v2 = 'Jammers Lab · 第四问 Q4 · 左右机会复测 · v2.0'
+    assert matches_model_title(v1, launchers['start_q4.bat'])
+    assert matches_model_title(v2, launchers['start_q4_v2.bat'])
+    assert not matches_model_title(v1, launchers['start_q4_v2.bat'])
+    assert not matches_model_title(v2, launchers['start_q4.bat'])
+    assert not matches_model_title('Terminal · '+v2, launchers['start_q4_v2.bat'])

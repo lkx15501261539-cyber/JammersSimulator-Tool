@@ -9,12 +9,13 @@
 | --- | --- | --- |
 | `启动界面.bat` | 默认第三问 Baseline 2.0，可在界面切换模型 | 转调 Q3 v2 启动器 |
 | `start_q3_v2.bat` | 第三问六边形 7 点 Baseline 2.0 | `models/Baseline_v2.0_七点六边形.zip` |
-| `start_q4.bat` | 第四问 25 点 C/U | `model_sources/q4/` |
+| `start_q4.bat` | 第四问 1.0：25 点 C/U | `model_sources/q4/q4.py` |
+| `start_q4_v2.bat` | 第四问 2.0：左右机会复测 | `model_sources/q4/q4_v2.py` |
 
 窗口打开后点击 **开始模拟**；计算完成后可播放该局日志。Q4 的启动不再要求另行
 下载 CUMCM-2026 论文仓库。Q3 v2.0 仍从原 ZIP 校验并执行模型，不改写原包。
 
-两个脚本均在模拟器目录内使用 `.venv`。Q3 v2.0 使用
+启动脚本均在模拟器目录内使用 `.venv`。Q3 v2.0 使用
 `requirements-q3-v2.txt`，包含原交付包的 numpy、numba、scipy、mpmath 版本范围
 及桌面依赖 PySide6；启动时先在本地核对版本及可导入状态，满足后直接离线启动，缺少或版本不符时才调用 pip 安装。
 Q4 模型本身只使用标准库，桌面需要 PySide6。
@@ -28,19 +29,21 @@ Q4 模型本身只使用标准库，桌面需要 PySide6。
 python -m pip install -r requirements-q3-v2.txt
 python -m enhanced gui --model hexagon_v2 --error-model baseline_fixed_field
 python -m enhanced gui --problem 4 --error-model worst_edge
+python -m enhanced gui --problem 4 --model q4_opportunity_v2 --error-model worst_edge
 ```
 
-两个启动器都支持 `--check-only`：执行相同的环境准备、校验模型并创建 Qt 窗口后退出，不在失败时等待键盘输入。普通双击仍打开可见窗口。脚本只在自己的进程中启用 UTF-8，不改变系统区域或编码设置。
+启动器都支持 `--check-only`：执行相同的环境准备、校验模型并创建 Qt 窗口后退出，不在失败时等待键盘输入。`start_q4_v2.bat` 共用 `start_q4.bat --v2`，普通双击仍打开可见窗口。脚本只在自己的进程中启用 UTF-8，不改变系统区域或编码设置。
 
 完整 Windows 交付包见 [交付说明](WINDOWS_DELIVERY.md)，包内保留“启动界面.bat”旧名称；过去下载的 ZIP 不会自动更新。
 
-Windows x64 的三个正常启动入口和 54 项模型/接口检查已通过，包含中文与空格路径。详见 [Windows 验证记录](WINDOWS_VALIDATION.md)。
+此前 Windows x64 的三个正常启动入口和 54 项模型/接口检查已通过，包含中文与空格路径。详见 [Windows 验证记录](WINDOWS_VALIDATION.md)。该记录测试的是 Q4 v1，不能作为本次 v2 新入口的 Windows 验证结果。
 
 ## macOS
 
 完整解压新版模拟器，并安装 macOS 版 64 位 Python 3.12（最低检查 3.10）。
 双击 `启动界面.command` 默认打开 Q3 七点六边形 Baseline 2.0；双击
-`start_q4.command` 打开 Q4 的 25 点 C/U 模型。两个入口共用环境准备逻辑。
+`start_q4.command` 打开 Q4 1.0 的 25 点 C/U 模型，`start_q4_v2.command`
+打开 Q4 2.0 左右机会复测。三个入口共用环境准备逻辑。
 
 常规启动只使用模拟器目录内的 `.venv`，缺少时创建；检查依赖版本与导入后，
 只有缺失或版本不符时才联网安装。Q3 依照 `requirements-q3-v2.txt`，Q4 桌面
@@ -53,6 +56,7 @@ Windows x64 的三个正常启动入口和 54 项模型/接口检查已通过，
 ```sh
 ./启动界面.command --check-only
 ./start_q4.command --check-only
+./start_q4_v2.command --check-only
 JAMMERS_PYTHON="/完整路径/.venv/bin/python" ./start_q4.command
 ./启动界面.command --replay "examples/q3-v2-demo"
 ```
@@ -76,8 +80,11 @@ JAMMERS_PYTHON="/完整路径/.venv/bin/python" ./start_q4.command
 ## 不同文件夹与版本
 
 每个解压目录是一份独立模拟器副本，不会自动扫描别的版本文件夹，也不会因 GitHub 更新自动升级。
-建议固定使用最新完整交付包；它可在模型选择框中切换已经整合的 Q3 v1 六边形、Q3 v1 螺旋、Q3 v2 七点六边形及 Q4。
+建议固定使用最新完整交付包；它可在模型选择框中切换已经整合的 Q3 v1 六边形、Q3 v1 螺旋、Q3 v2 七点六边形、Q4 v1 及 Q4 v2 左右机会复测。
 Q3 v1 需要对应原始 ZIP（本次完整交付已附带）；界面用于模拟与回放，不是源码编辑器。新增模型需要先接入适配器后才会出现在列表。
 
 2026-09-12 Mac 更新验证：Q3 v2 和 Q4 的 `--check-only` 均已在当前 Mac 的 Python 3.12 / PySide6 6.11.2 环境成功构建窗口并校验模型；15 项交付测试通过。
 这不等于所有 macOS 版本均已测试，也不代表已经完成 Apple 签名或公证。
+
+Q4 v2 的实现范围和保留限制见 [第四问 v2.0](Q4_V2.md)。上面的历史 Mac 记录
+同样只覆盖当时发布的 Q4 v1；本次 v2 的结果须另行核验。

@@ -20,13 +20,17 @@ def test_source_delivery_is_reproducible_and_self_contained(tmp_path):
     names = set(manifest['files'])
     assert {'启动界面.bat', 'start_q3_v2.bat', 'start_q4.bat',
             '启动界面.command', 'start_q4.command', 'Mac启动说明.txt',
-            'model_sources/q4/q4.py', f'models/{V2_ARCHIVE}'} <= names
+            'start_q4_v2.command', 'start_q4_v2.bat', 'docs/Q4_V2.md',
+            'model_sources/q4/q4.py', 'model_sources/q4/q4_v2.py',
+            'model_sources/q4/opportunities.py', f'models/{V2_ARCHIVE}'} <= names
+    assert manifest['q4_models'] == ['q4_cu', 'q4_opportunity_v2']
     assert not any(set(Path(name).parts) & {'.git', '.venv', '.cache', '__pycache__', 'runs'}
                    for name in names)
     with zipfile.ZipFile(first) as archive:
-        for name in ('启动界面.command', 'start_q4.command'):
+        for name in ('启动界面.command', 'start_q4.command', 'start_q4_v2.command'):
             assert archive.getinfo(f'{PACKAGE}/{name}').external_attr >> 16 & 0o111 == 0o111
-        for name in ('start_q3_v2.bat', '启动界面.bat', f'models/{V2_ARCHIVE}'):
+        for name in ('start_q3_v2.bat', 'start_q4.bat', 'start_q4_v2.bat',
+                     '启动界面.bat', f'models/{V2_ARCHIVE}'):
             assert archive.read(f'{PACKAGE}/{name}') == (ROOT / name).read_bytes()
         archive.extractall(tmp_path / 'unpacked')
     standalone = tmp_path / 'unpacked' / PACKAGE

@@ -19,6 +19,17 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
+LAUNCHERS = (
+    ('start_q3_v2.bat', ('Q3', 'Baseline 2.0')),
+    ('start_q4.bat', ('Q4', '25 点 C/U', 'v1.0')),
+    ('start_q4_v2.bat', ('Q4', '左右机会复测', 'v2.0')),
+    ('启动界面.bat', ('Q3', 'Baseline 2.0')),
+)
+
+
+def matches_model_title(title, expected):
+    """Require both the model family and exact version in a native window title."""
+    return title.startswith('Jammers Lab') and all(fragment in title for fragment in expected)
 
 
 def windows_api():
@@ -89,7 +100,7 @@ def visible_windows(user, callback_type, pids, expected):
             return True
         title = ctypes.create_unicode_buffer(1024)
         user.GetWindowTextW(handle, title, len(title))
-        if title.value.startswith('Jammers Lab') and expected in title.value:
+        if matches_model_title(title.value, expected):
             rect = wintypes.RECT()
             if user.GetWindowRect(handle, ctypes.byref(rect)) and rect.right > rect.left and rect.bottom > rect.top:
                 found.append(dict(handle=int(handle), pid=pid.value, title=title.value,
@@ -142,7 +153,8 @@ def probe(launcher, expected, api, evidence_dir):
             code = process.wait(timeout=30)
             if code:
                 raise RuntimeError(f'{launcher} did not exit successfully after closing its window: {code}')
-            return dict(launcher=launcher, check_only_exit=result.returncode,
+            return dict(launcher=launcher, expected_title_fragments=list(expected),
+                        check_only_exit=result.returncode,
                         visible_window=window, normal_exit=code, passed=True)
         finally:
             if process.poll() is None:
@@ -165,7 +177,7 @@ def main():
                   validation='Unmodified BAT, native visible HWND, normal close', checks=[], passed=False)
     try:
         api = windows_api()
-        for launcher, expected in [('start_q3_v2.bat', 'Baseline 2.0'), ('start_q4.bat', 'Q4'), ('启动界面.bat', 'Baseline 2.0')]:
+        for launcher, expected in LAUNCHERS:
             report['checks'].append(probe(launcher, expected, api, output.parent))
         report['passed'] = True
     except Exception as error:
