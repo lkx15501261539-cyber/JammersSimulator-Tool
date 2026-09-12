@@ -1,0 +1,117 @@
+{
+  "platform": "Windows-2025Server-10.0.26100-SP0",
+  "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "executable": "D:\\a\\JammersSimulator-Tool\\JammersSimulator-Tool\\simulator 中文 path\\.venv\\Scripts\\python.exe",
+  "commit": "5278c429e583cd86cac3ff56c879b41f880616de",
+  "runner": "Windows",
+  "validation": "Unmodified BAT, native visible HWND, normal close",
+  "checks": [
+    {
+      "launcher": "start_q3_v2.bat",
+      "expected_title_fragments": [
+        "Q3",
+        "Baseline 2.0"
+      ],
+      "check_only_exit": 0,
+      "visible_window": {
+        "handle": 262246,
+        "pid": 4192,
+        "title": "Jammers Lab · 第三问 Q3 · 七点六边形 · Baseline 2.0",
+        "visible": true,
+        "rect": [
+          0,
+          0,
+          1066,
+          788
+        ]
+      },
+      "normal_exit": 0,
+      "passed": true
+    },
+    {
+      "launcher": "start_q4.bat",
+      "expected_title_fragments": [
+        "Q4",
+        "25 点 C/U",
+        "v1.0"
+      ],
+      "check_only_exit": 0,
+      "visible_window": {
+        "handle": 327974,
+        "pid": 6204,
+        "title": "Jammers Lab · 第四问 Q4 · 25 点 C/U · v1.0",
+        "visible": true,
+        "rect": [
+          0,
+          0,
+          1066,
+          788
+        ]
+      },
+      "normal_exit": 0,
+      "passed": true
+    },
+    {
+      "launcher": "start_q4_v2.bat",
+      "expected_title_fragments": [
+        "Q4",
+        "左右机会复测",
+        "v2.0"
+      ],
+      "check_only_exit": 0,
+      "visible_window": {
+        "handle": 590214,
+        "pid": 1368,
+        "title": "Jammers Lab · 第四问 Q4 · 左右机会复测 · v2.0",
+        "visible": true,
+        "rect": [
+          0,
+          0,
+          1066,
+          788
+        ]
+      },
+      "normal_exit": 0,
+      "passed": true
+    },
+    {
+      "launcher": "启动界面.bat",
+      "expected_title_fragments": [
+        "Q3",
+        "Baseline 2.0"
+      ],
+      "check_only_exit": 0,
+      "visible_window": {
+        "handle": 655458,
+        "pid": 4164,
+        "title": "Jammers Lab · 第三问 Q3 · 七点六边形 · Baseline 2.0",
+        "visible": true,
+        "rect": [
+          0,
+          0,
+          1066,
+          788
+        ]
+      },
+      "normal_exit": 0,
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "workflow_run_url": "https://github.com/lkx15501261539-cyber/JammersSimulator-Tool/actions/runs/34696331584",
+  "tests": {
+    "simulator_interfaces": {
+      "passed": 82,
+      "skipped": 8
+    },
+    "q4_v1_v2_core": {
+      "passed": 50,
+      "skipped": 0
+    },
+    "skip_reasons": "6 macOS zsh checks and 2 optional external Q1 demo checks"
+  },
+  "limitations": [
+    "Windows Server 2025 x64 / Python 3.12.10 runner only; not every Windows installation",
+    "Native startup verified; no official competition service used"
+  ]
+}
