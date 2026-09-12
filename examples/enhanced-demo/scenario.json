@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "seed": 42,
+  "scenario": "uniform",
+  "count": null,
+  "error_model": "deterministic_hash_fixed",
+  "min_separation": 250.0,
+  "strategy": "Q1 Integration Demo",
+  "strategy_version": "1.0",
+  "q1_sha256": "2456a59a084a8e0d5e06619d772ed96038840a69fd78140009a7dcb804bb9deb"
+}

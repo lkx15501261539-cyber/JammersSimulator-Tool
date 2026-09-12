@@ -1,0 +1,27 @@
+{
+  "virtual_time_s": 109.52185362293233,
+  "distance_m": 447.6092681146617,
+  "measure_count": 3,
+  "switch_count": 0,
+  "failed_clear_count": 0,
+  "detected": 1,
+  "cleared": 1,
+  "source_count": 15,
+  "clear_rate": 0.06666666666666667,
+  "average_localization_clear_time_s": 104.52185362293233,
+  "time_breakdown": {
+    "moving": 89.52185362293233,
+    "measuring": 15.0,
+    "switching": 0.0,
+    "clear": 5.0
+  },
+  "schema_version": 1,
+  "seed": 42,
+  "scenario": "uniform",
+  "count": null,
+  "error_model": "deterministic_hash_fixed",
+  "min_separation": 250.0,
+  "strategy": "Q1 Integration Demo",
+  "strategy_version": "1.0",
+  "q1_sha256": "2456a59a084a8e0d5e06619d772ed96038840a69fd78140009a7dcb804bb9deb"
+}

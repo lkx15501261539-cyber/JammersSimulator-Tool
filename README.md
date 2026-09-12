@@ -1,3 +1,5 @@
+> **Enhanced desktop platform:** continuous PySide6 animation, reproducible fixed-error mock, Q1 integration and Replay are available on `enhanced-mock`. See [ENHANCED.md](ENHANCED.md) for setup and [COMPATIBILITY.md](COMPATIBILITY.md) for scope.
+
 <div align="center">
 
 ```text

@@ -1,0 +1,3 @@
+# Python >=3.10; original CLI/MCP dependencies remain in requirements.txt
+PySide6>=6.6,<7
+pytest>=8,<10

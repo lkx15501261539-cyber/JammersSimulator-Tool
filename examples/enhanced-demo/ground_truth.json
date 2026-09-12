@@ -1,0 +1,122 @@
+[
+  {
+    "channel": 4,
+    "x": -715.6400380961937,
+    "y": -449.540822713061,
+    "recv_radius": 1404.7152283389132,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 1,
+    "x": 49.85529932403856,
+    "y": -136.27336675311219,
+    "recv_radius": 1349.0696974941134,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 9,
+    "x": 587.5449274969477,
+    "y": 870.1739088773577,
+    "recv_radius": 1478.6065361033907,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 8,
+    "x": 871.9484865552852,
+    "y": 574.6931032810977,
+    "recv_radius": 1048.358188416732,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 17,
+    "x": -1317.430007360278,
+    "y": -1005.1168701561364,
+    "recv_radius": 1403.5641366371901,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 3,
+    "x": -1497.9739154186357,
+    "y": -346.9944345567118,
+    "recv_radius": 1486.5578819896853,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 12,
+    "x": -1048.7757587993055,
+    "y": -355.69761021126635,
+    "recv_radius": 1414.7023321264974,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 2,
+    "x": 914.0015925802143,
+    "y": -1081.0203913067455,
+    "recv_radius": 1288.676072628381,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 11,
+    "x": 1448.702942449674,
+    "y": 429.0367511927259,
+    "recv_radius": 1113.9491378257735,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 18,
+    "x": 849.1422321667558,
+    "y": 465.3756242237949,
+    "recv_radius": 1116.395443180515,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 13,
+    "x": -100.02904982008465,
+    "y": 563.2395764500337,
+    "recv_radius": 1317.8422221322,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 7,
+    "x": -745.1568064499244,
+    "y": 791.7054968006873,
+    "recv_radius": 1104.7535153857439,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 19,
+    "x": 857.3589722416053,
+    "y": -360.4770951890639,
+    "recv_radius": 1324.0176926232969,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 16,
+    "x": 667.9636195362363,
+    "y": 1235.883919038148,
+    "recv_radius": 1364.5633989751746,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  },
+  {
+    "channel": 14,
+    "x": -528.7014180022042,
+    "y": 499.89888016588577,
+    "recv_radius": 1494.7616753182976,
+    "source_type": "omnidirectional",
+    "orientation": 0.0
+  }
+]

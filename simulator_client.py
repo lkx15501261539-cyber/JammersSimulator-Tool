@@ -6,9 +6,11 @@ HTTP REST API Client Driver
 import json
 import os
 import time
+import ipaddress
 from typing import Any, Dict, Optional
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen, build_opener, ProxyHandler
+from urllib.parse import urlparse
 from http.client import RemoteDisconnected
 
 
@@ -23,6 +25,13 @@ class SimulatorClient:
         self.robot_id = robot_id
         self.arena_id = arena_id
         self.request_counter = 0
+        host = urlparse(self.base_url).hostname or ""
+        try:
+            local = ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            local = host.lower() == "localhost"
+        # Local simulator traffic must not be routed through a system HTTP proxy.
+        self._urlopen = build_opener(ProxyHandler({})).open if local else urlopen
 
     def _gen_req_id(self, prefix: str) -> str:
         self.request_counter += 1
@@ -33,7 +42,7 @@ class SimulatorClient:
         data = json.dumps(payload).encode("utf-8")
         req = Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
         try:
-            with urlopen(req, timeout=timeout) as resp:
+            with self._urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except HTTPError as e:
             err_body = e.read().decode("utf-8", errors="ignore")
@@ -122,4 +131,3 @@ class SimulatorClient:
                 "error": str(e),
                 "message": f"Cannot connect to simulator on {host}:{port}. Ensure simulator or SSH tunnel is active.",
             }
-
