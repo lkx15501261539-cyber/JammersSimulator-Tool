@@ -225,49 +225,60 @@ def paint_beacon(
     cleared: bool,
     pulse: float = 0,
     scale: float = 1.0,
+    status: str | None = None,
 ) -> None:
     """Paint a transmitter whose ground anchor is exactly at ``center``.
 
     The compact icon spans about 30 × 40 pixels above its ground anchor. ``pulse``
-    is a phase in radians. Cleared transmitters retain their location and channel
-    badge, with a green status check and no transmitting waves.
+    is a phase in radians. ``status`` supports unseen, detected, target and
+    cleared. Omitting it preserves the original ``cleared`` boolean behavior.
+    Unseen and cleared units have no transmitting waves. Cleared transmitters
+    retain their location and channel badge, with a green status check.
     """
     painter.save()
     try:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.translate(center)
         painter.scale(scale,scale)
-        hot=QColor("#f2b96d") if not cleared else QColor("#77b49f")
-        base=QColor("#a9824a") if not cleared else QColor("#587678")
-        _ellipse(painter,(-17,-2,34,13),QColor(0,7,15,100))
-        if not cleared:
-            alpha=round(27+14*(1+math.sin(pulse)))
-            aura=QColor(hot); aura.setAlpha(alpha)
-            _ellipse(painter,(-17,-7,34,20),aura)
+        # Keep this observer-art palette local: the simulator and map never
+        # need to import each other merely to choose a transmitter appearance.
+        palettes={
+            'unseen': ('#8996a5','#d1d8df','#617080','#435361'),
+            'detected': ('#c17a2b','#e7bf87','#8d5a27','#674722'),
+            'target': ('#8961c0','#d1bde9','#62488a','#49365f'),
+            'cleared': ('#29816a','#abd3c2','#235f4f','#264b42'),
+        }
+        visual_status=status if status in palettes else ('cleared' if cleared else 'detected')
+        primary,highlight,shade,panel=palettes[visual_status]
+        hot=QColor(primary)
+        is_cleared=visual_status=='cleared'
+        transmitting=visual_status in ('detected','target')
+        _ellipse(painter,(-17,-2,34,13),QColor(0,7,15,65))
+        # The map owns the current target's ground pulse. The transmitter
+        # artwork remains anchored and uses only its small antenna animation.
         # Perspective mounting plinth and a ribbed transmitter equipment cabinet.
-        _polygon(painter,[(-12,0),(-3,-5),(12,0),(3,6)],"#182b38","#6e8791",.6)
-        _polygon(painter,[(-12,0),(3,6),(3,9),(-12,3)],"#1b303d","#5a727e",.5)
-        _polygon(painter,[(3,6),(12,0),(12,3),(3,9)],"#0c202c","#425c69",.5)
+        _polygon(painter,[(-12,0),(-3,-5),(12,0),(3,6)],primary,highlight,.6)
+        _polygon(painter,[(-12,0),(3,6),(3,9),(-12,3)],shade,highlight,.5)
+        _polygon(painter,[(3,6),(12,0),(12,3),(3,9)],panel,shade,.5)
         _rounded(painter,(-8,-16,16,21),2.8,
-                 _linear(-8,-15,8,5,[(0,"#7f969c" if cleared else "#b9a37d"),
-                                     (.42,"#445e69"),(1,"#1f3948")]),
-                 "#a2b5bb",.65)
+                 _linear(-8,-15,8,5,[(0,highlight),(.42,primary),(1,shade)]),
+                 highlight,.65)
         _polygon(painter,[(-8,-13),(-5,-17),(6,-17),(8,-14)],
-                 "#7e9b9d" if cleared else "#d1b587","#c4d1ca",.5)
-        _rounded(painter,(-5,-11,10,8),1.4,"#112c3d","#728d97",.5)
+                 highlight,"#e5eced",.5)
+        _rounded(painter,(-5,-11,10,8),1.4,panel,highlight,.5)
         for y in (-8.7,-6.7,-4.7):
-            painter.setPen(_pen("#507382",.65))
+            painter.setPen(_pen(highlight,.65))
             painter.drawLine(QPointF(-3,y),QPointF(3,y))
-        _rounded(painter,(-5,-.5,7,2.2),.7,hot)
-        _ellipse(painter,(3,-.2,1.5,1.5),"#daf5cf" if cleared else "#ffe1a0")
-        # Mast with alternating metallic highlights and a warm antenna tip.
+        _rounded(painter,(-5,-.5,7,2.2),.7,highlight)
+        _ellipse(painter,(3,-.2,1.5,1.5),"#dceee8" if is_cleared else highlight)
+        # Mast with metallic highlights and a status-colored antenna tip.
         painter.setPen(_pen("#091d2b",3.4))
         painter.drawLine(QPointF(0,-16),QPointF(0,-30))
         painter.setPen(_pen("#bfd1d4",1.5))
         painter.drawLine(QPointF(-.4,-17),QPointF(-.4,-30))
-        _rounded(painter,(-2.7,-26,5.4,3.3),1,base,"#e2cfb0" if not cleared else "#a6b9ba",.5)
-        _ellipse(painter,(-2,-32,4,4),hot,"#ecdec4" if not cleared else "#bad2cf",.6)
-        if not cleared:
+        _rounded(painter,(-2.7,-26,5.4,3.3),1,primary,highlight,.5)
+        _ellipse(painter,(-2,-32,4,4),hot,highlight,.6)
+        if transmitting:
             wave=QColor(hot); wave.setAlpha(round(110+60*(1+math.sin(pulse))/2))
             painter.setPen(_pen(wave,1.1))
             painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -275,9 +286,9 @@ def paint_beacon(
                 rect=QRectF(-radius,-30-radius,radius*2,radius*2)
                 painter.drawArc(rect, -42*16, 84*16)
                 painter.drawArc(rect, 138*16, 84*16)
-        else:
-            _ellipse(painter,(5,-23,12,12),"#214f4d","#76bdac",.7)
-            painter.setPen(_pen("#baf7df",1.6))
+        elif is_cleared:
+            _ellipse(painter,(5,-23,12,12),primary,highlight,.7)
+            painter.setPen(_pen("#e3fff2",1.6))
             painter.drawLine(QPointF(8,-17),QPointF(10,-15))
             painter.drawLine(QPointF(10,-15),QPointF(14,-20))
         # The badge belongs to the equipment, leaving map annotation placement to

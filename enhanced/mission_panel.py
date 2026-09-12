@@ -1,11 +1,10 @@
 """Read-only mission, planning queue and per-channel iteration widgets."""
 from html import escape
+from .source_status import SOURCE_COLORS, SOURCE_LABELS, source_status, selected_source_channel
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QGroupBox,QLabel,
     QTextBrowser)
 
-AMBER='#b66b24'
-GREEN='#29816a'
 STATE_NAMES={'UNKNOWN':'未发现','FOUND':'待处理','CLEARED':'已清除',
              'UNRESOLVED':'未解决','EMPTY_CERTIFIED':'已排除'}
 
@@ -161,11 +160,13 @@ class MissionPanel(QWidget):
             record=info.get(str(channel),info.get(channel,{}))
             count=sum(a.get('channel')==channel for a in state['actions'] if 'svd_deg' in a)
             count=record.get('measurements',count)
-            done=channel in state['cleared']
-            status='已清除' if done else STATE_NAMES.get(record.get('state'),'待处理' if channel in state['detected'] else '未发现')
+            visual_status=source_status(state,channel)
+            status=SOURCE_LABELS[visual_status]
+            if visual_status not in ('target','cleared') and record.get('state') in ('UNRESOLVED','EMPTY_CERTIFIED'):
+                status=STATE_NAMES[record['state']]
             followups=record.get('followups')
             iteration='—' if followups is None else f"{followups} / {record.get('limit',5)}"
-            rows.append([f'{channel:02d}',iteration,str(count),status]);colors.append(GREEN if done else AMBER)
-        active=(target or {}).get('channel')
+            rows.append([f'{channel:02d}',iteration,str(count),status]);colors.append(SOURCE_COLORS[visual_status])
+        active=selected_source_channel(state)
         self.fill_table(self.iteration_table,rows,colors,keys=channels,active=active)
         self.iteration_note.setText('迭代 = 原模型追加测点次数。\n'+('含真值源频道；关闭真值后仅列已发现源。' if show_truth else '仅列已发现源；未发现源不提前显示。'))

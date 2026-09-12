@@ -22,7 +22,7 @@ def state_with_plan():
     s=project([],119.)
     s['detected']={8};s['position']=[120.,-20.]
     s['route_points']=[dict(index=0,position=[0.,0.],visited=True),dict(index=1,position=[1125.255,0.],visited=False)]
-    s['strategy']=dict(available=True,current_target=dict(kind='measure',channel=8,position=[984.468,-166.483]),
+    s['strategy']=dict(available=True,current_target=dict(kind='measure',channel=8,position=[984.468,-166.483],role='selected_service'),
         tasks=[dict(kind='service',channel=8,position=[984.468,-166.483]),dict(kind='anchor_scan',anchor_index=1,position=[1125.255,0.]),dict(kind='service',channel=4,position=None)],
         pending_targets=[dict(channel=4)],queue_kind='route',
         channel_iterations={'8':dict(followups=2,limit=5,measurements=4,state='FOUND'),'4':dict(followups=0,limit=5,measurements=1,state='FOUND')})
@@ -45,7 +45,8 @@ def test_iterations_use_original_followup_count_not_measurement_count(panel):
     s=state_with_plan();panel.update_state(s,[dict(channel=8)],True)
     assert panel.iteration_table.rows[0][1]=='2 / 5'
     assert panel.iteration_table.rows[0][2]=='4'
-    before=panel.iteration_table.document().find('待处理').charFormat().foreground().color()
+    assert panel.iteration_table.rows[0][3]=='当前目标'
+    before=panel.iteration_table.document().find('当前目标').charFormat().foreground().color()
     s['cleared']={8};s['strategy']['channel_iterations']['8']['state']='CLEARED'
     panel.update_state(s,[dict(channel=8)],True)
     assert panel.iteration_table.rows[0][3]=='已清除'

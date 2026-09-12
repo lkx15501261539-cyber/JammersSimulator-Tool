@@ -6,6 +6,7 @@ from PySide6.QtGui import (QColor, QPen, QBrush, QPainter, QPainterPath, QPolygo
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsItem
 from .replay import project
 from .robot_art import paint_robot, paint_beacon
+from .source_status import SOURCE_COLORS, SOURCE_LABELS, source_status
 
 TEAL = '#187b83'
 AMBER = '#af681f'
@@ -277,8 +278,8 @@ class MapView(QGraphicsView):
         p=painter;p.save();p.resetTransform()
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w,h=self.viewport().width(),self.viewport().height()
+        self._point_markers(p)
         self._robot(p)
-        self._route_labels(p)
         self._hud(p,w,h)
         if self.show_closeup and w>=850 and h>=420:self._closeup(p,w,h)
         p.restore()
@@ -335,31 +336,34 @@ class MapView(QGraphicsView):
         for point in points[1:]:path.lineTo(point)
         p.setPen(pen(QColor(107,134,171,105),1.15,Qt.PenStyle.DotLine))
         p.setBrush(Qt.BrushStyle.NoBrush);p.drawPath(path)
-        for item,point in zip(route,points):
-            visited=item.get('visited',False)
-            color='#6b9582' if visited else UNVISITED
-            p.setPen(pen(color,1.35));p.setBrush(QColor('#e5f0e9' if visited else '#f0f5fc'))
-            # Square anchor badges distinguish route stops from source towers.
-            p.drawRoundedRect(QRectF(point.x()-10,point.y()-10,20,20),4,4)
-            font=QFont('Arial',8);font.setBold(True);p.setFont(font);p.setPen(QColor(color))
-            p.drawText(QRectF(point.x()-10,point.y()-10,20,20),Qt.AlignmentFlag.AlignCenter,
-                       str(item.get('index',0)+1))
-            if visited:
-                p.setPen(pen('#ffffff',1.3));p.setBrush(QColor('#6b9582'))
-                p.drawEllipse(point+QPointF(8,-8),4,4)
-                p.drawLine(point+QPointF(6,-8),point+QPointF(7.5,-6.5))
-                p.drawLine(point+QPointF(7.5,-6.5),point+QPointF(10,-9.5))
 
-    def _route_labels(self,p):
-        # Keep each fixed-point name visible above robot/source artwork.
+    def _point_markers(self,p):
+        """One centered marker per coordinate, with its name inside.
+
+        A fixed stop can also be a direction origin. Combine their names so
+        the observer never implies an additional, displaced observation.
+        """
         route=self.state.get('route_points') or self.state.get('strategy',{}).get('route_points',[])
+        markers={}
         for item in route:
-            point=self.point(item['position']);color='#6b9582' if item.get('visited') else UNVISITED
-            badge=QRectF(point.x()-43,point.y()-31,30,19)
-            p.setPen(pen(color,.8));p.drawLine(point+QPointF(-7,-7),badge.bottomRight())
-            rounded(p,badge,'#ffffff',color,4)
-            font=QFont('Arial',8);font.setBold(True);p.setFont(font);p.setPen(QColor(color))
-            p.drawText(badge,Qt.AlignmentFlag.AlignCenter,f"P{item.get('index',0)+1}")
+            xy=tuple(item['position'])
+            marker=markers.setdefault(xy,{'labels':[], 'color':UNVISITED})
+            marker['labels'].append(f"P{item.get('index',0)+1}")
+            marker['fixed']=True
+            marker['color']='#6b9582' if item.get('visited') else UNVISITED
+        directions=[d for d in self.state['measurements'] if d['channel']==self.state['channel']]
+        for index,direction in enumerate(directions,1):
+            marker=markers.setdefault(tuple(direction['position']),{'labels':[], 'color':'#557ea3'})
+            marker['labels'].append(f'D{index}')
+        font=QFont('Arial',7);font.setBold(True);p.setFont(font)
+        for xy,marker in markers.items():
+            anchor=self.point(xy);label=' / '.join(marker['labels'])
+            width=max(20,p.fontMetrics().horizontalAdvance(label)+10)
+            badge=QRectF(anchor.x()-width/2,anchor.y()-10,width,20)
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(marker['color']))
+            radius=3 if marker.get('fixed') else 10
+            p.drawRoundedRect(badge,radius,radius)
+            p.setPen(QColor('#ffffff'));p.drawText(badge,Qt.AlignmentFlag.AlignCenter,label)
 
     def _strategy_targets(self,p):
         context=self.state.get('strategy',{})
@@ -370,15 +374,8 @@ class MapView(QGraphicsView):
             p.drawEllipse(point,12,12)
             for dx,dy in ((-1,0),(1,0),(0,-1),(0,1)):
                 p.drawLine(point+QPointF(dx*9,dy*9),point+QPointF(dx*16,dy*16))
-        # Candidates are actual model proposals, separate from the committed
-        # execution queue. Empty or uncomputed positions are never invented.
-        for candidate in context.get('candidates',[]):
-            if candidate.get('position') is None:continue
-            point=self.point(candidate['position'])
-            if target and candidate['position']==target.get('position'):continue
-            p.setPen(pen(QColor(109,97,162,160),1));p.setBrush(QColor(143,123,193,15))
-            p.drawPolygon(QPolygonF([point+QPointF(0,-5),point+QPointF(5,0),
-                                     point+QPointF(0,5),point+QPointF(-5,0)]))
+        # Unselected candidate proposals remain in observer logs. The map
+        # shows committed targets only, so proposals cannot look like stops.
         if context.get('queue_kind')=='tail':
             pending=[task for task in context.get('tasks',[]) if task.get('position') is not None]
             for index,task in enumerate(pending,1):
@@ -391,19 +388,28 @@ class MapView(QGraphicsView):
     def _sources(self,p):
         s=self.state;scale=abs(self.transform().m11())
         for source in self.sources:
-            center=self.point((source['x'],source['y']));ch=source['channel'];cleared=ch in s['cleared']
+            center=self.point((source['x'],source['y']));ch=source['channel']
+            status=source_status(s,ch);color=SOURCE_COLORS[status];cleared=status=='cleared'
             if self.radii:
-                radius=source['recv_radius']*scale
-                p.setBrush(Qt.BrushStyle.NoBrush);p.setPen(pen(QColor(183,127,67,40),1,Qt.PenStyle.DashLine));p.drawEllipse(center,radius,radius)
+                radius=source['recv_radius']*scale;outline=QColor(color);outline.setAlpha(40)
+                p.setBrush(Qt.BrushStyle.NoBrush);p.setPen(pen(outline,1,Qt.PenStyle.DashLine));p.drawEllipse(center,radius,radius)
             if self.truth:
-                # Ground status discs provide a second cue beyond the tower's
-                # color: cleared transmitters also retain their explicit check.
-                p.setPen(pen('#8bc5ae' if cleared else '#d7a66a',1))
-                p.setBrush(QColor('#e4f2ea' if cleared else '#fff0db'))
+                # A breathing halo identifies the actual selected task without
+                # displacing the source's ground anchor or changing playback.
+                if status=='target':
+                    pulse=(1+math.sin(s['time']*2.4))/2
+                    halo=QColor(color);halo.setAlpha(round(90+75*pulse))
+                    fill=QColor(color);fill.setAlpha(round(12+12*pulse))
+                    p.setPen(pen(halo,1.7));p.setBrush(fill)
+                    p.drawEllipse(center,17+5*pulse,12+4*pulse)
+                fill=QColor(color);fill.setAlpha(35)
+                p.setPen(pen(color,1.2));p.setBrush(fill)
                 p.drawEllipse(center,12 if self.follow_robot else 9,6 if self.follow_robot else 5)
-                paint_beacon(p,center,ch,cleared,pulse=s['time']*.8,scale=.68 if not self.follow_robot else .9)
-                if self.show_annotations or ch==s['channel']:
-                    text(p,center.x()+13,center.y()-12,f'CH {ch:02}',9,VISITED if cleared else AMBER)
+                paint_beacon(p,center,ch,cleared,pulse=s['time']*.8,
+                             scale=.68 if not self.follow_robot else .9,status=status)
+                if self.show_annotations or ch==s['channel'] or status=='target':
+                    label=f'CH {ch:02}'+(' · 目标' if status=='target' else '')
+                    text(p,center.x()+13,center.y()-12,label,9,color,status=='target')
         # Clear radius and outcome are observational events, independent of truth toggle.
         for clear in s['clear_actions']:
             pos=self.point(clear['position']);radius=20*scale
@@ -441,20 +447,6 @@ class MapView(QGraphicsView):
                 p.setPen(pen(QColor(130,98,185,155),1.2,Qt.PenStyle.DashLine));p.setBrush(Qt.BrushStyle.NoBrush);p.drawEllipse(center,r,r)
         for xy in s['candidates']:
             center=self.point(xy);p.setPen(pen('#5674a5'));p.setBrush(Qt.BrushStyle.NoBrush);p.drawRect(QRectF(center.x()-4,center.y()-4,8,8))
-        # Current-channel direction origins always have matching D1/D2 labels
-        # in the map and independent localization detail. Only completed
-        # observations enter this list; no pending bearing is displayed.
-        grouped={}
-        directions=[d for d in s['measurements'] if d['channel']==channel]
-        for index,direction in enumerate(directions,1):
-            grouped.setdefault(tuple(direction['position']),[]).append(index)
-        for position,indices in grouped.items():
-            anchor=self.point(position);label='/'.join(f'D{i}' for i in indices)
-            p.setPen(pen('#ffffff',1));p.setBrush(QColor('#557ea3'));p.drawEllipse(anchor,3.5,3.5)
-            box=QRectF(anchor.x()+9,anchor.y()-27,max(23,8+len(label)*6),18)
-            rounded(p,box,'#ffffff','#cedce7',4)
-            text(p,box.x()+4,box.y()+12,label,8,'#466c91',True)
-
     def _robot(self,p):
         s=self.state;pos=self.point(s['position']);anim=s.get('animation',{})
         moving=s['status']=='moving';measuring=s['status']=='measuring'
@@ -508,19 +500,21 @@ class MapView(QGraphicsView):
             text(p,w-238,69,f"任务结束 · 已清除 {len(s['cleared'])} / {len(self.sources)}",10,VISITED,True)
         if not self.truth:text(p,w-238,87,'源真值已隐藏',8,MUTED)
         # Consistent colors and shapes for source state and fixed route visits.
-        legend=QRectF(w-262,h-143,240,85)
+        legend=QRectF(w-262,h-165,240,107)
         rounded(p,legend,'#ffffff','#dee7eb',8)
-        for x,label,color in ((legend.x()+14,'未清除源','#b66b24'),(legend.x()+126,'已清除源','#29816a')):
-            p.setPen(pen(color,1));p.setBrush(QColor(color));p.drawEllipse(QPointF(x+3,legend.y()+20),3,3)
-            text(p,x+13,legend.y()+24,label,9,'#5e7683')
+        for index,status in enumerate(('unseen','detected','target','cleared')):
+            x=legend.x()+14+(index%2)*112;y=legend.y()+20+(index//2)*20
+            color=SOURCE_COLORS[status]
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(color));p.drawEllipse(QPointF(x+3,y),3,3)
+            text(p,x+13,y+4,SOURCE_LABELS[status],9,'#5e7683')
         for x,label,color in ((legend.x()+14,'未访问路点',UNVISITED),(legend.x()+126,'已访问路点','#6b9582')):
-            p.setPen(pen(color,1.2));p.setBrush(QColor('#ffffff'))
-            p.drawRoundedRect(QRectF(x,legend.y()+37,7,7),1.5,1.5)
-            text(p,x+13,legend.y()+44,label,9,'#5e7683')
-        p.setPen(pen('#21868a',1.8));p.drawLine(QPointF(legend.x()+14,legend.y()+65),QPointF(legend.x()+36,legend.y()+65))
-        text(p,legend.x()+43,legend.y()+69,'实际轨迹',8,MUTED)
-        p.setPen(pen('#8aa0bb',1.1,Qt.PenStyle.DotLine));p.drawLine(QPointF(legend.x()+124,legend.y()+65),QPointF(legend.x()+146,legend.y()+65))
-        text(p,legend.x()+153,legend.y()+69,'固定路线',8,MUTED)
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(color))
+            p.drawRoundedRect(QRectF(x,legend.y()+59,7,7),1.5,1.5)
+            text(p,x+13,legend.y()+66,label,9,'#5e7683')
+        p.setPen(pen('#21868a',1.8));p.drawLine(QPointF(legend.x()+14,legend.y()+87),QPointF(legend.x()+36,legend.y()+87))
+        text(p,legend.x()+43,legend.y()+91,'实际轨迹',8,MUTED)
+        p.setPen(pen('#8aa0bb',1.1,Qt.PenStyle.DotLine));p.drawLine(QPointF(legend.x()+124,legend.y()+87),QPointF(legend.x()+146,legend.y()+87))
+        text(p,legend.x()+153,legend.y()+91,'固定路线',8,MUTED)
         meters=500 if scale<.3 else 100;length=meters*scale
         p.setPen(pen('#8a9fa9',1));p.drawLine(QPointF(w-22-length,h-29),QPointF(w-22,h-29))
         p.drawLine(QPointF(w-22-length,h-33),QPointF(w-22-length,h-25));p.drawLine(QPointF(w-22,h-33),QPointF(w-22,h-25))

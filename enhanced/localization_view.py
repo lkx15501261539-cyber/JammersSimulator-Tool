@@ -196,11 +196,12 @@ class LocalizationView(QWidget):
             anchor=point(xy)
             if not rect.adjusted(7,7,-7,-7).contains(anchor):continue
             color=COLORS[(indices[0]-1)%len(COLORS)]
-            p.setPen(_pen('#ffffff',1.3));p.setBrush(QColor(color));p.drawEllipse(anchor,4.6,4.6)
-            label='/'.join(f'D{i}' for i in indices)
-            x=min(max(anchor.x()+8,rect.left()+5),rect.right()-12-len(label)*5)
-            y=max(rect.top()+13,anchor.y()-8)
-            _text(p,x,y,label,8,color,True)
+            label=' / '.join(f'D{i}' for i in indices)
+            font=QFont('Arial',7);font.setBold(True);p.setFont(font)
+            width=max(18,p.fontMetrics().horizontalAdvance(label)+8)
+            badge=QRectF(anchor.x()-width/2,anchor.y()-9,width,18)
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(color));p.drawRoundedRect(badge,9,9)
+            p.setPen(QColor('#ffffff'));p.drawText(badge,Qt.AlignmentFlag.AlignCenter,label)
         robot=point(self.state['position'])
         if rect.adjusted(14,14,-14,-14).contains(robot):
             paint_robot(p,robot,heading_deg=-self.state.get('heading_deg',0),scale=.24)
