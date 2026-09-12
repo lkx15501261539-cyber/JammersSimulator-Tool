@@ -75,7 +75,7 @@ class MapView(QGraphicsView):
         circle((0,0),1800,'#7892ab',width=2)
         line((-70,0),(70,0),'#b4c8d9',2)
         line((0,-70),(0,70),'#b4c8d9',2)
-        label((35,35),'O · 0,0')
+        label((0,0),'O · 0,0',offset=(-70,-20))
         label((-1700,1750),'ARENA R = 1800 m')
         label((1450,-1750),'E →   N ↑')
         for source in sources:
@@ -85,7 +85,7 @@ class MapView(QGraphicsView):
                 circle(p,source['recv_radius'],'#39463e')
             if truth:
                 circle(p,22,color,color)
-                label(p,f"G{source['channel']}"+(' ✓' if source['channel'] in state['cleared'] else ''),color)
+                label(p,f"G{source['channel']}"+(' ✓' if source['channel'] in state['cleared'] else ''),color,offset=(-50,-17))
         path = QPainterPath(QPointF(0,0))
         for x,y in state['trajectory']:
             path.lineTo(x,-y)
@@ -359,6 +359,10 @@ class Window(QMainWindow):
     def set_run(self,run):
         self.run_data, self.t, self.playing = run,0.,False
         self.play.setText('▶ 播放')
+        model=run['metadata'].get('baseline_model')
+        if model is None and 'q1' in str(run['metadata'].get('strategy','')).lower(): model='q1_demo'
+        index=self.model.findData(model) if model is not None else -1
+        if index>=0: self.model.setCurrentIndex(index)
         outcome = {'incomplete_unresolved':' · 模型结束，仍有未解决目标',
                    'cancelled':' · 部分日志：计算已停止'}.get(run['metadata'].get('completion',run['metadata'].get('outcome')),'')
         self.statusBar().showMessage(f"{run['metadata']['scenario']} · seed {run['metadata']['seed']} · {run['metadata']['strategy']}{outcome} · {run.get('directory','Replay')}")
