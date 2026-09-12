@@ -30,8 +30,17 @@ jammers_python=''
 if [[ -n "${JAMMERS_PYTHON:-}" ]]; then
   jammers_python="${JAMMERS_PYTHON:a}"
 fi
+jammers_venv_root="${JAMMERS_VENV_ROOT:-$HOME/Library/Application Support/JammersLab/venvs}"
+jammers_venv_root="${jammers_venv_root:a}"
 cd -- "${0:a:h}" || jammers_fail 1 '无法打开模拟器文件夹，请完整解压后重试。'
 export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
+# Some python.org installations have no configured CA bundle yet. Use the
+# local system bundle for pip while retaining verification and explicit choice.
+if [[ -z "${PIP_CERT:-}" && -f /etc/ssl/cert.pem ]]; then
+  export PIP_CERT=/etc/ssl/cert.pem
+fi
+[[ -f requirements-q3-v2.txt ]] || \
+  jammers_fail 1 '缺少统一模型依赖清单，请完整解压模拟器。'
 
 if (( jammers_problem == 4 )); then
   [[ -f model_sources/q4/q4.py && -f model_sources/q4/cu.py ]] || \
@@ -41,25 +50,26 @@ if (( jammers_problem == 4 )); then
       jammers_fail 1 '缺少 Q4 v2.0 机会复测模型文件，请完整解压新版模拟器。'
   fi
 else
-  [[ -f 'models/Baseline_v2.0_七点六边形.zip' && -f requirements-q3-v2.txt ]] || \
-    jammers_fail 1 '缺少 Q3 v2.0 模型包或依赖清单，请完整解压模拟器。'
+  [[ -f 'models/Baseline_v2.0_七点六边形.zip' ]] || \
+    jammers_fail 1 '缺少 Q3 v2.0 模型包，请完整解压模拟器。'
 fi
 
 jammers_python_compatible() {
   [[ -x "$1" ]] && "$1" -c \
-    "import sys, struct; sys.exit(0 if sys.version_info >= (3, 10) and struct.calcsize('P') == 8 else 1)" \
+    "import sys, struct; expected=sys.argv[1]; version=f'{sys.version_info.major}.{sys.version_info.minor}'; sys.exit(0 if sys.version_info >= (3, 10) and struct.calcsize('P') == 8 and (not expected or version == expected) else 1)" "${2:-}" \
     >/dev/null 2>&1
 }
 
 if [[ -n "$jammers_python" ]]; then
   jammers_python_compatible "$jammers_python" || \
     jammers_fail 1 'JAMMERS_PYTHON 指定的 Python 不可用，需要 Python 3.10 或以上的 64 位环境。'
-elif [[ -e .venv || -L .venv ]]; then
-  jammers_python="$PWD/.venv/bin/python"
-  jammers_python_compatible "$jammers_python" || \
-    jammers_fail 1 '现有 .venv 不兼容或不完整。请先将它改名备份，再重新启动；脚本不会删除它。'
+elif [[ -e "$jammers_venv_root/python-3.12" || -L "$jammers_venv_root/python-3.12" ]]; then
+  jammers_python="$jammers_venv_root/python-3.12/bin/python"
+  jammers_python_compatible "$jammers_python" 3.12 || \
+    jammers_fail 1 "共用 Python 3.12 环境不兼容或不完整，请先改名备份后重试：$jammers_venv_root/python-3.12。脚本不会删除它。"
 else
-  print -r -- '首次启动：准备本文件夹内的 Python 环境。'
+  # Desktop/Documents may be managed by cloud storage. Keep imported packages
+  # in local Application Support, and leave any old checkout .venv untouched.
   typeset -a jammers_candidates=(
     /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12
     /opt/homebrew/bin/python3.12
@@ -70,6 +80,7 @@ else
     jammers_candidates+=("$jammers_candidate")
   done
   for jammers_candidate in "${jammers_candidates[@]}"; do
+    [[ "$jammers_candidate" == "$PWD/.venv/"* ]] && continue
     if jammers_python_compatible "$jammers_candidate"; then
       jammers_python="$jammers_candidate"
       break
@@ -77,37 +88,41 @@ else
   done
   [[ -n "$jammers_python" ]] || \
     jammers_fail 1 '未找到 Python 3.10 或以上的 64 位环境。请从 python.org 安装 macOS 版 Python 3.12 后重试。'
-  "$jammers_python" -m venv .venv
+  jammers_version="$("$jammers_python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
   jammers_code=$?
-  (( jammers_code == 0 )) || jammers_fail "$jammers_code" '无法创建 Python 环境，请查看上方错误。'
-  jammers_python="$PWD/.venv/bin/python"
+  (( jammers_code == 0 )) || jammers_fail "$jammers_code" '无法读取 Python 版本，请查看上方错误。'
+  jammers_venv="$jammers_venv_root/python-$jammers_version"
+  if [[ -e "$jammers_venv" || -L "$jammers_venv" ]]; then
+    jammers_python_compatible "$jammers_venv/bin/python" "$jammers_version" || \
+      jammers_fail 1 "共用 Python 环境不兼容或不完整，请先改名备份后重试：$jammers_venv。脚本不会删除它。"
+  else
+    print -r -- "首次启动：准备本机共用 Python 环境：$jammers_venv"
+    "$jammers_python" -m venv "$jammers_venv"
+    jammers_code=$?
+    (( jammers_code == 0 )) || jammers_fail "$jammers_code" '无法创建 Python 环境，请查看上方错误。'
+  fi
+  jammers_python="$jammers_venv/bin/python"
 fi
 
 jammers_check_dependencies() {
-  "$jammers_python" - "$jammers_problem" <<'PY'
-import sys
+  "$jammers_python" - <<'PY'
 from PySide6 import QtWidgets, __version_info__
 assert (6, 6) <= __version_info__ < (7,), 'PySide6 must be >=6.6,<7'
-if sys.argv[1] == '3':
-    import importlib.metadata as md
-    from pathlib import Path
-    from pip._vendor.packaging.requirements import Requirement
-    import numpy, numba, scipy, mpmath
-    requirements = [Requirement(line.strip()) for line in
-                    Path('requirements-q3-v2.txt').read_text(encoding='utf-8').splitlines()
-                    if line.strip() and not line.lstrip().startswith('#')]
-    assert all(r.specifier.contains(md.version(r.name)) for r in requirements), 'Dependency version mismatch'
+import importlib.metadata as md
+from pathlib import Path
+from pip._vendor.packaging.requirements import Requirement
+import numpy, numba, scipy, mpmath
+requirements = [Requirement(line.strip()) for line in
+                Path('requirements-q3-v2.txt').read_text(encoding='utf-8').splitlines()
+                if line.strip() and not line.lstrip().startswith('#')]
+assert all(r.specifier.contains(md.version(r.name)) for r in requirements), 'Dependency version mismatch'
 PY
 }
 
-print -r -- "检查 Q${jammers_problem} 桌面与模型依赖：$jammers_python"
+print -r -- "检查统一模拟器的全部模型依赖：$jammers_python"
 if ! jammers_check_dependencies >/dev/null 2>&1; then
   print -r -- '安装缺失或版本不符的依赖，此步骤需要联网。'
-  if (( jammers_problem == 4 )); then
-    "$jammers_python" -m pip install 'PySide6>=6.6,<7'
-  else
-    "$jammers_python" -m pip install -r requirements-q3-v2.txt
-  fi
+  "$jammers_python" -m pip install -r requirements-q3-v2.txt
   jammers_code=$?
   (( jammers_code == 0 )) || jammers_fail "$jammers_code" '依赖安装失败，请查看上方错误并检查网络。'
   jammers_check_dependencies

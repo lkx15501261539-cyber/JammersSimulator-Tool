@@ -33,6 +33,8 @@ Windows 启动
 此历史记录覆盖 Q4 1.0，不代表本次新增的 Q4 2.0 已在 Windows 上验证。
 Q4 2.0 实现范围和限制见 docs/Q4_V2.md。
 
-Q4 2.0 使用与原 Q4 相同的环境，不增加第三方依赖。若需启动检查，运行：
+Q4 2.0 算法不增加第三方依赖。所有 GUI 入口现按 requirements-q3-v2.txt 准备
+全部模型所需依赖，因此从 Q4 首次启动后，也可在同一窗口直接切换 Q3。
+Windows 仍使用解压目录里的 .venv。若需启动检查，运行：
   start_q4_v2.bat --check-only
 等价于 start_q4.bat --v2 --check-only；普通双击则显示模拟窗口。

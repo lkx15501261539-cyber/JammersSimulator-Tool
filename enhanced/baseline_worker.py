@@ -1,5 +1,6 @@
 """Process bridge to an unchanged baseline package. No world truth enters here."""
 import importlib.util
+import faulthandler
 import json
 from pathlib import Path
 import sys
@@ -52,6 +53,10 @@ def main():
                 raise ConnectionError('Simulation bridge closed')
             return json.loads(line)
     try:
+        # A stalled dependency import used to leave an empty worker.log and
+        # an unexplained zero-action spinner. Capture a stack if preparation
+        # takes unusually long; this does not interrupt or change the model.
+        faulthandler.dump_traceback_later(60, repeat=True, file=sys.stderr)
         sys.path.insert(0, str(model_dir))
         spec = importlib.util.spec_from_file_location('baseline_original_run', model_dir/'run.py')
         module = importlib.util.module_from_spec(spec)
@@ -62,7 +67,9 @@ def main():
         module.warmup()
         if config.get('version') == 'baseline-v2.0':
             # Match v2 main: certify the complete response grid before /enter.
+            send(dict(kind='phase', phase='认证七点搜索骨架与几何'))
             module.prepare_geometry(config)
+        faulthandler.cancel_dump_traceback_later()
         send(dict(kind='phase', phase='执行原模型路线与测点规划'))
         from .strategy_observer import observe_controller
         with observe_controller(module, lambda data: send(dict(kind='strategy_state', data=data))) as observer:
@@ -71,6 +78,8 @@ def main():
     except Exception:
         send(dict(kind='error', error=traceback.format_exc()))
         return 1
+    finally:
+        faulthandler.cancel_dump_traceback_later()
     return 0
 
 if __name__ == '__main__':

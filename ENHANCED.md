@@ -254,7 +254,7 @@ Qt view do not need modification to evaluate a new policy through the runner.
 
 定向源在 180° 闭半平面及接收半径内返回 direction/near；背面即使很近也可 no_signal。与源完全重合时零向量在所有闭半平面内。20 m 光学清除与朝向无关，clear 不改变无线电频道。
 
-Windows Q4：双击 `start_q4.bat` 打开 v1.0，`start_q4_v2.bat` 打开 v2.0；Mac 对应 `start_q4.command` 和 `start_q4_v2.command`。下载本分支即可使用自带的 Q4 运行源码。首次需要已安装 64 位 Python 3.10+ 并联网准备 PySide6。Q4 模式隐藏旧 Baseline ZIP 控件，Q3 模式保留。历史 Windows v1 验证见 [验证记录](docs/WINDOWS_VALIDATION.md)，该记录不代表新增 v2 已在 Windows 验证。
+Windows Q4：双击 `start_q4.bat` 打开 v1.0，`start_q4_v2.bat` 打开 v2.0；Mac 对应 `start_q4.command` 和 `start_q4_v2.command`。下载本分支即可使用自带的 Q4 运行源码。首次需要已安装 64 位 Python 3.10+ 并联网按 `requirements-q3-v2.txt` 准备全部 GUI 模型依赖，之后可在窗口切换 Q3/Q4。Mac 共用环境放在本机 `~/Library/Application Support/JammersLab/venvs/`，Windows 仍放在解压目录 `.venv`。Q4 模式隐藏旧 Baseline ZIP 控件，Q3 模式保留。历史 Windows v1 验证见 [验证记录](docs/WINDOWS_VALIDATION.md)，该记录不代表新增 v2 已在 Windows 验证。
 
 最新完整包为 `JammersLab_Q3v2_Q4v1_v2_Mac_Windows_20260912.zip`，解压后进入
 `JammersLab_Q3v2_Q4` 文件夹；旧压缩包和旧文件夹不会自动获得新模型。

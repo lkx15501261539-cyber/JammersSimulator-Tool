@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -174,3 +175,84 @@ def test_windows_native_window_probe_distinguishes_q4_versions():
     assert not matches_model_title(v1, launchers['start_q4_v2.bat'])
     assert not matches_model_title(v2, launchers['start_q4.bat'])
     assert not matches_model_title('Terminal · '+v2, launchers['start_q4_v2.bat'])
+
+
+def test_q4_windows_prepares_every_gui_models_dependencies():
+    script = (ROOT / 'start_q4.bat').read_text(encoding='ascii')
+    assert 'pip install -r "requirements-q3-v2.txt"' in script
+    assert 'import numpy, numba, scipy, mpmath' in script
+    assert 'r.specifier.contains(md.version(r.name))' in script
+    # Keep the Windows environment in its existing checkout location.
+    assert 'py -3 -m venv ".venv"' in script
+
+
+def _mac_environment_fixture(tmp_path):
+    folder = tmp_path / 'Desktop 中文 path' / 'simulator'
+    folder.mkdir(parents=True)
+    for name in ('启动界面.command', 'start_q4_v2.command', 'requirements-q3-v2.txt'):
+        shutil.copyfile(ROOT / name, folder / name)
+    for name in ('enhanced', 'model_sources'):
+        shutil.copytree(ROOT / name, folder / name, ignore=shutil.ignore_patterns('__pycache__'))
+    desktop_python = folder / '.venv' / 'bin' / 'python'
+    desktop_python.parent.mkdir(parents=True)
+    desktop_python.write_text('#!/bin/zsh\nexit 81\n', encoding='utf-8')
+    desktop_python.chmod(0o755)
+    shared_root = tmp_path / 'Library' / 'Application Support' / 'JammersLab' / 'venvs'
+    shared_python = shared_root / 'python-3.12' / 'bin' / 'python'
+    shared_python.parent.mkdir(parents=True)
+    environment = os.environ.copy()
+    environment.pop('JAMMERS_PYTHON', None)
+    environment['JAMMERS_VENV_ROOT'] = str(shared_root)
+    return folder, shared_python, desktop_python, environment
+
+
+@pytest.mark.skipif(shutil.which('zsh') is None or sys.version_info[:2] != (3, 12),
+                    reason='Uses zsh and the preferred Python 3.12 environment')
+@pytest.mark.parametrize('certificate', [None, '/explicit/user-ca.pem'])
+def test_mac_prefers_shared_environment_and_preserves_checkout_venv(tmp_path, certificate):
+    folder, shared_python, desktop_python, environment = _mac_environment_fixture(tmp_path)
+    certificate_record = tmp_path / 'pip-certificate.txt'
+    environment.pop('PIP_CERT', None)
+    if certificate is not None:
+        environment['PIP_CERT'] = certificate
+    # Forward to this test's prepared environment, keeping all imports real.
+    shared_python.write_text(
+        f'#!/bin/zsh\nprint -r -- "${{PIP_CERT-unset}}" > {shlex.quote(str(certificate_record))}\n'
+        f'exec {shlex.quote(sys.executable)} "$@"\n', encoding='utf-8')
+    shared_python.chmod(0o755)
+    original = desktop_python.read_bytes()
+    result = subprocess.run(['zsh', str(folder / 'start_q4_v2.command'), '--check-only'],
+                            cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert str(shared_python) in result.stdout
+    assert 'PASS: q4_opportunity_v2' in result.stdout
+    assert desktop_python.read_bytes() == original
+    expected = certificate or ('/etc/ssl/cert.pem' if Path('/etc/ssl/cert.pem').is_file() else 'unset')
+    assert certificate_record.read_text(encoding='utf-8').strip() == expected
+
+
+@pytest.mark.skipif(shutil.which('zsh') is None, reason='Requires zsh')
+def test_mac_invalid_shared_environment_is_preserved_and_not_replaced(tmp_path):
+    folder, shared_python, desktop_python, environment = _mac_environment_fixture(tmp_path)
+    shared_python.write_text('#!/bin/zsh\nexit 82\n', encoding='utf-8')
+    shared_python.chmod(0o755)
+    original = shared_python.read_bytes()
+    result = subprocess.run(['zsh', str(folder / 'start_q4_v2.command'), '--check-only'],
+                            cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 1
+    assert '共用 Python 3.12 环境不兼容或不完整' in result.stderr
+    assert shared_python.read_bytes() == original
+    assert desktop_python.exists()
+
+
+@pytest.mark.skipif(shutil.which('zsh') is None, reason='Requires zsh')
+def test_mac_explicit_python_override_still_wins_over_broken_shared_environment(tmp_path):
+    folder, shared_python, _, environment = _mac_environment_fixture(tmp_path)
+    shared_python.write_text('#!/bin/zsh\nexit 82\n', encoding='utf-8')
+    shared_python.chmod(0o755)
+    environment['JAMMERS_PYTHON'] = sys.executable
+    result = subprocess.run(['zsh', str(folder / 'start_q4_v2.command'), '--check-only'],
+                            cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert sys.executable in result.stdout
+    assert 'PASS: q4_opportunity_v2' in result.stdout

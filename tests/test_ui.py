@@ -143,3 +143,111 @@ def test_scan_labels_group_exact_positions_and_keep_full_action_tooltips():
     assert any(item.toPlainText()=='21' for item in labels)
     assert not any(item.toPlainText()=='1' for item in labels)
     view.close()
+
+
+def q4_replay_with_old_queue():
+    from enhanced.q4_adapter import search_points
+    strategy=dict(available=True,problem=4,model='q4_opportunity_v2',phase='planning',
+        route_points=[dict(index=j,position=list(point),scan_completed=False)
+                      for j,point in enumerate(search_points())],
+        tasks=[dict(kind='service',channel=8,position=[100.,200.])],
+        pending_targets=[dict(channel=8)],opportunities=[])
+    return dict(events=[dict(seq=0,type='StrategyState',start=0.,end=0.,data=strategy),
+                        dict(seq=1,type='MissionEnd',start=0.,end=317.,data={})],
+                sources=[],metadata=dict(problem=4,model='q4_opportunity_v2',
+                    scenario='uniform',seed=22,error_model='baseline_fixed_field',
+                    strategy='Q4 · 左右机会复测 · v2.0',completion='completed'))
+
+
+def test_switching_model_clears_old_replay_and_shows_selected_skeleton():
+    app=QApplication.instance() or QApplication([])
+    window=Window(ScenarioConfig(),None)
+    window.timer.stop()
+    old=q4_replay_with_old_queue()
+    try:
+        window.set_run(old)
+        window.seek(100000)
+        assert len(window.map.state['route_points'])==25
+        assert window.mission_panel.queue_table.rows
+        assert window.mission_panel.time.text()=='317.0 s'
+        window.model.setCurrentIndex(window.model.findData('hexagon_v2'))
+        assert window.run_data is None and window.t==0 and not window.playing
+        assert window.model.currentData()=='hexagon_v2' and window.config.problem==3
+        assert len(window.map.state['route_points'])==7
+        assert window.mission_panel.queue_table.rows==()
+        assert window.mission_panel.iteration_table.rows==()
+        assert window.mission_panel.time.text()=='0.0 s'
+        assert '左右机会' not in window.mission_panel.queue_note.text()
+        assert '当前回放' not in window.note.text()
+        assert window.values['Virtual Time'].text()=='—'
+        assert window.clock.text()=='0.0 / 0.0 s' and window.timeline.value()==0
+        assert not window.play.isEnabled() and not window.export.isEnabled()
+        assert not window.open_run.isEnabled() and not window.details_button.isEnabled()
+        # A deliberate replay load still selects its own model and retains it.
+        window.set_run(old)
+        window.seek(100000)
+        assert window.run_data is old and window.model.currentData()=='q4_opportunity_v2'
+        assert len(window.map.state['route_points'])==25
+        assert window.mission_panel.queue_table.rows and window.mission_panel.time.text()=='317.0 s'
+    finally:
+        window.close()
+
+
+def test_starting_same_model_clears_old_results_while_worker_is_preparing(monkeypatch):
+    from enhanced import q4_adapter
+    app=QApplication.instance() or QApplication([])
+    started,release=threading.Event(),threading.Event()
+    next_run=q4_replay_with_old_queue()
+    def run(config,output,progress=None,cancelled=None,model='q4_cu'):
+        started.set()
+        deadline=time.monotonic()+5
+        while not release.is_set() and not cancelled() and time.monotonic()<deadline:
+            time.sleep(.005)
+        return next_run
+    monkeypatch.setattr(q4_adapter,'run_q4',run)
+    window=Window(ScenarioConfig(problem=4),None)
+    window.timer.stop()
+    try:
+        window.set_run(q4_replay_with_old_queue())
+        window.seek(100000)
+        window.new.click()
+        assert started.wait(2)
+        assert window.run_data is None and window.t==0
+        assert window.mission_panel.queue_table.rows==()
+        assert window.mission_panel.time.text()=='0.0 s'
+        assert window.mission_panel.target.text()=='正在计算本局，完成后自动播放'
+        assert window.values['Virtual Time'].text()=='—'
+        assert not window.play.isEnabled() and not window.export.isEnabled()
+        release.set()
+        wait_for_worker(app,window)
+        assert window.run_data is next_run and window.playing
+        assert window.mission_panel.queue_table.rows
+    finally:
+        release.set()
+        if window.worker is not None:
+            window.cancel_simulation();wait_for_worker(app,window)
+        window.close()
+
+
+def test_progress_distinguishes_real_wait_from_virtual_task_time():
+    app=QApplication.instance() or QApplication([])
+    window=Window(ScenarioConfig(),None)
+    window.timer.stop()
+    class Worker:
+        def isInterruptionRequested(self):return False
+    window.worker=Worker()
+    try:
+        window.show_progress(dict(phase='认证七点搜索骨架与几何',elapsed_s=35.2,
+                                  phase_elapsed_s=13.6,action_count=0,virtual_time_s=0.))
+        text=window.progress_label.text()
+        assert '认证七点搜索骨架与几何' in text
+        assert '实际用时 35.2 s' in text and '本阶段 13.6 s' in text
+        assert '已执行 0 次动作' in text and '虚拟时间 0.0 s' in text
+        # Q4 and older workers need not supply wall-clock heartbeat fields.
+        window.show_progress(dict(phase='q4_running',action_count=7,virtual_time_s=42.))
+        text=window.progress_label.text()
+        assert '正在运行第四问' in text and '虚拟时间 42.0 s' in text
+        assert '实际用时' not in text and '本阶段' not in text
+    finally:
+        window.worker=None
+        window.close()

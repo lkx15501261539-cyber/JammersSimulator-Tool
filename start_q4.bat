@@ -12,6 +12,7 @@ if errorlevel 1 goto location_failed
 
 if not exist "model_sources\q4\q4.py" goto missing_model
 if not exist "model_sources\q4\cu.py" goto missing_model
+if not exist "requirements-q3-v2.txt" goto missing_model
 if "%_q4_version%"=="2" if not exist "model_sources\q4\q4_v2.py" goto missing_model
 if "%_q4_version%"=="2" if not exist "model_sources\q4\opportunities.py" goto missing_model
 if exist ".venv\Scripts\python.exe" goto check_environment
@@ -36,11 +37,13 @@ goto check_environment
 :check_environment
 ".venv\Scripts\python.exe" -c "import sys, struct; sys.exit(0 if sys.version_info >= (3, 10) and struct.calcsize('P') == 8 else 1)" >nul 2>&1
 if errorlevel 1 goto invalid_environment
-".venv\Scripts\python.exe" -c "from PySide6 import QtWidgets, __version_info__; assert (6, 6) <= __version_info__ < (7,)" >nul 2>&1
+".venv\Scripts\python.exe" -c "import sys; import importlib.metadata as md; from pathlib import Path; from pip._vendor.packaging.requirements import Requirement; from PySide6 import QtWidgets; import numpy, numba, scipy, mpmath; specs=[Requirement(s) for s in Path('requirements-q3-v2.txt').read_text().splitlines() if s.strip() and not s.startswith('#')]; sys.exit(0 if all(r.specifier.contains(md.version(r.name)) for r in specs) else 1)" >nul 2>&1
 if not errorlevel 1 goto ready
 
-echo Installing the Q4 desktop dependency. Internet access is required once.
-".venv\Scripts\python.exe" -m pip install "PySide6>=6.6,<7"
+echo Installing dependencies for all five GUI models. Internet access is required once.
+".venv\Scripts\python.exe" -m pip install -r "requirements-q3-v2.txt"
+if errorlevel 1 goto dependency_failed
+".venv\Scripts\python.exe" -c "import sys; import importlib.metadata as md; from pathlib import Path; from pip._vendor.packaging.requirements import Requirement; from PySide6 import QtWidgets; import numpy, numba, scipy, mpmath; specs=[Requirement(s) for s in Path('requirements-q3-v2.txt').read_text().splitlines() if s.strip() and not s.startswith('#')]; sys.exit(0 if all(r.specifier.contains(md.version(r.name)) for r in specs) else 1)" >nul 2>&1
 if errorlevel 1 goto dependency_failed
 
 :ready
@@ -87,7 +90,7 @@ popd
 exit /b 0
 
 :missing_model
-echo Q4 model files were not found in model_sources\q4.
+echo Q4 model files or the unified dependency list were not found.
 echo Extract the entire simulator repository before starting.
 if /i not "%~1"=="--check-only" pause
 popd
@@ -115,7 +118,7 @@ popd
 exit /b 1
 
 :dependency_failed
-echo PySide6 installation failed. Check the network and the error above, then retry.
+echo Unified GUI dependency installation failed. Check the network and the error above, then retry.
 if /i not "%~1"=="--check-only" pause
 popd
 exit /b 1

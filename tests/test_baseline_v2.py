@@ -125,8 +125,9 @@ def test_v2_observer_matches_unmodified_controller_actions_and_decisions(v2_arch
 
 def test_v2_complete_worker_mission_preserves_config_and_time(v2_archive, tmp_path):
     output = tmp_path/'v2-mission'
+    progress = []
     run = run_baseline(ScenarioConfig(seed=20260912, error_model='baseline_fixed_field'),
-                       v2_archive, 'hexagon_v2', output)
+                       v2_archive, 'hexagon_v2', output, progress=progress.append)
     assert run['metadata']['strategy_version'] == 'baseline-v2.0'
     assert run['metadata']['completion'] == 'completed'
     assert run['metadata']['model_files_unchanged'] and run['metadata']['metrics_reconciled']
@@ -141,3 +142,22 @@ def test_v2_complete_worker_mission_preserves_config_and_time(v2_archive, tmp_pa
     summary = json.loads((output/'baseline-original'/'summary.json').read_text())
     assert abs(summary['virtual_time_s']-summary['time_equation_s']) < 1e-6
     assert summary['optimizations'] > 0
+    preparing = [p for p in progress if p['phase'] in
+                 ('预热原模型计算模块', '认证七点搜索骨架与几何')]
+    assert {p['phase'] for p in preparing} == {'预热原模型计算模块', '认证七点搜索骨架与几何'}
+    assert all(p['action_count'] == 0 and p['virtual_time_s'] == 0 for p in preparing)
+    assert all(0 <= p['phase_elapsed_s'] <= p['elapsed_s'] for p in preparing)
+    timed = [p['elapsed_s'] for p in progress if 'elapsed_s' in p]
+    assert timed == sorted(timed)
+    assert all(p['elapsed_s'] >= 0 for p in run['metadata']['phase_timings'])
+
+
+def test_mac_model_cache_is_outside_cloud_backed_delivery(monkeypatch, tmp_path):
+    from enhanced import baseline
+    monkeypatch.setattr(baseline.Path, 'home', lambda: tmp_path/'user')
+    monkeypatch.setattr(baseline, 'ROOT', tmp_path/'user'/'Desktop'/'simulator')
+    monkeypatch.setattr(baseline.sys, 'platform', 'darwin')
+    assert baseline.cache_root() == tmp_path/'user'/'Library'/'Caches'/'JammersLab'/'baselines'
+    for platform in ('win32', 'linux'):
+        monkeypatch.setattr(baseline.sys, 'platform', platform)
+        assert baseline.cache_root() == baseline.ROOT/'.cache'/'baselines'

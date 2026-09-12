@@ -20,7 +20,16 @@ MODEL_LABELS = {'hexagon_v1': '六边形 7 点 · Baseline 1.0',
 ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE_NAME = 'Baseline_v1.0_两模型完整交付.zip'
 V2_ARCHIVE_NAME = 'Baseline_v2.0_七点六边形.zip'
-CACHE = ROOT / '.cache' / 'baselines'
+
+def cache_root():
+    # Desktop/Documents may be cloud-backed on macOS. Keep generated model
+    # files and Numba binaries in the OS's local cache directory.
+    if sys.platform == 'darwin':
+        return Path.home() / 'Library' / 'Caches' / 'JammersLab' / 'baselines'
+    return ROOT / '.cache' / 'baselines'
+
+
+CACHE = cache_root()
 
 
 def default_archive(model='hexagon_v1'):
@@ -112,6 +121,20 @@ def run_baseline(config: ScenarioConfig, archive, model, output, progress=None, 
     reader = threading.Thread(target=read_messages, daemon=True); reader.start()
     phase, actions, last_report = '加载原模型',0,0.
     started = time.monotonic()
+    phase_started, phase_timings = started, []
+
+    def change_phase(value):
+        nonlocal phase, phase_started
+        if value != phase:
+            now = time.monotonic()
+            phase_timings.append(dict(phase=phase, elapsed_s=now-phase_started))
+            phase, phase_started = value, now
+
+    def publish_progress():
+        now = time.monotonic()
+        report(dict(phase=phase, action_count=actions, virtual_time_s=world.t,
+                    elapsed_s=now-started, phase_elapsed_s=now-phase_started))
+
     try:
         while True:
             if cancelled():
@@ -122,12 +145,13 @@ def run_baseline(config: ScenarioConfig, archive, model, output, progress=None, 
                 message=messages.get(timeout=.2)
             except queue.Empty:
                 if time.monotonic()-last_report > 1:
-                    report(dict(phase=phase,action_count=actions,virtual_time_s=world.t))
+                    publish_progress()
                     last_report=time.monotonic()
                 continue
             kind=message['kind']
             if kind=='phase':
-                phase=message['phase']
+                change_phase(message['phase'])
+                publish_progress()
             elif kind=='strategy_state':
                 world.emit('StrategyState', **message['data'])
             elif kind=='request':
@@ -143,8 +167,8 @@ def run_baseline(config: ScenarioConfig, archive, model, output, progress=None, 
                         world.emit('LocalizationUpdate',**localization_data(localize(records),c,records))
                 proc.stdin.write(json.dumps(response,ensure_ascii=False,allow_nan=False)+'\n')
                 proc.stdin.flush()
-                phase='原模型规划下一步（计算耗时不计入虚拟时间）'
-                report(dict(phase=phase,action_count=actions,virtual_time_s=world.t))
+                change_phase('原模型规划下一步（计算耗时不计入虚拟时间）')
+                publish_progress()
             elif kind=='result':
                 summary=message['result'];failure=message.get('error')
                 metadata['unresolved_channels']=summary.get('unresolved_channels',[])
@@ -169,6 +193,8 @@ def run_baseline(config: ScenarioConfig, archive, model, output, progress=None, 
         _verify_unchanged(directory,provenance['model_files_sha256'])
     metadata['model_files_unchanged']=True
     metadata['wall_runtime_s']=time.monotonic()-started
+    phase_timings.append(dict(phase=phase, elapsed_s=time.monotonic()-phase_started))
+    metadata['phase_timings']=phase_timings
     if failure: metadata.update(completion='error',error=failure)
     if not world.events or world.events[-1]['type']!='MissionEnd':
         world.emit('MissionEnd',reason=metadata.get('completion','stopped'))

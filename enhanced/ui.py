@@ -203,7 +203,7 @@ class Window(QMainWindow):
         self.localization_dock.hide();self._last_detail_channel=None
         QShortcut(QKeySequence('Space'),self,activated=self.toggle_play)
         QShortcut(QKeySequence('Right'),self,activated=self.step)
-        self.model.currentIndexChanged.connect(self.update_model_controls)
+        self.model.currentIndexChanged.connect(self.model_changed)
         self.archive.editingFinished.connect(self.preview_route)
         self.update_model_controls()
         self.set_busy(False)
@@ -234,6 +234,31 @@ class Window(QMainWindow):
         if path:
             if self.grab().save(path):self.statusBar().showMessage(f'画面已保存：{path}')
             else:self.show_error('无法保存到此位置。')
+    def clear_run(self):
+        """Reset visible replay state without touching any saved run files."""
+        self.run_data,self.t,self.playing=None,0.,False
+        self._autoplay_pending=False
+        self.play.setText('▶ 播放')
+        self.clock.setText('0.0 / 0.0 s')
+        self.timeline.blockSignals(True);self.timeline.setValue(0);self.timeline.blockSignals(False)
+        self.map.label_signature=None
+        state=project([],0)
+        self.map.draw(state,[],False,False)
+        self.mission_panel.update_state(state,[],False)
+        self.mission_panel.target.setText('等待开始模拟')
+        self.mission_panel.queue_note.setText('当前模型尚未产生任务队列。')
+        self.mission_panel.cleared.setText('—')
+        self.localization_view.reset_selection();self.localization_view.update_state(state)
+        self.localization_dock.hide();self._last_detail_channel=None
+        self.details_button.setEnabled(False)
+        for value in self.values.values():value.setText('—')
+        self.channels.setText('尚未开始')
+        self.set_busy(False)
+        self.update_note()
+    def model_changed(self,*args):
+        self.clear_run()
+        self.update_model_controls()
+        self.statusBar().showMessage(f'已切换：{self.model.currentText()}。点击“开始模拟”运行新一局。')
     def update_model_controls(self,*args):
         model = self.model.currentData()
         baseline = model in MODEL_LABELS
@@ -329,7 +354,9 @@ class Window(QMainWindow):
         if model in MODEL_LABELS and not archive.is_file():
             self.show_error(f'找不到模型交付压缩包，请选择 {MODEL_LABELS[model]} 的 ZIP 文件。')
             return
-        self.playing=False; self.play.setText('▶ 播放')
+        self.clear_run()
+        self.preview_route()
+        self.mission_panel.target.setText('正在计算本局，完成后自动播放')
         self.progress_label.setText(f'正在启动 {Q4_MODEL_LABELS[model]}，计算完成后自动播放。' if model in Q4_MODEL_LABELS else
                                     '正在启动原始模型，计算完成后自动播放。复杂场景可能需要数分钟。')
         self.statusBar().showMessage(f'正在计算：{self.model.currentText()} · seed {self.seed.value()}')
@@ -349,7 +376,13 @@ class Window(QMainWindow):
                   'extracting':'正在校验交付包','localizing':'正在计算定位区域',
                   'preparing':'正在准备模型','complete':'计算完成'}
         phase = progress.get('phase','running')
-        self.progress_label.setText(f"{phases.get(phase,phase)} · 已执行 {progress.get('action_count',0)} 次动作"
+        elapsed=[]
+        for key,label in (('elapsed_s','实际用时'),('phase_elapsed_s','本阶段')):
+            seconds=progress.get(key)
+            if isinstance(seconds,(int,float)) and math.isfinite(seconds):
+                elapsed.append(f'{label} {max(0.,seconds):.1f} s')
+        timing=' · '+' · '.join(elapsed) if elapsed else ''
+        self.progress_label.setText(f"{phases.get(phase,phase)}{timing} · 已执行 {progress.get('action_count',0)} 次动作"
                                     f" · 虚拟时间 {progress.get('virtual_time_s',0):.1f} s · 完成后自动播放")
     def cancel_simulation(self):
         if self.worker and self.worker.isRunning():
@@ -367,6 +400,8 @@ class Window(QMainWindow):
         worker,self.worker = self.worker,None
         if worker is not None: worker.deleteLater()
         self.set_busy(False)
+        if self.run_data is None:
+            self.mission_panel.target.setText('本次计算已结束，尚无可播放结果')
         if getattr(self,'_autoplay_pending',False):
             self._autoplay_pending=False
             self.toggle_play()
@@ -393,7 +428,11 @@ class Window(QMainWindow):
             model='q4_cu' if run['metadata'].get('problem') == 4 else run['metadata'].get('baseline_model')
         if model is None and 'q1' in str(run['metadata'].get('strategy','')).lower(): model='q1_demo'
         index=self.model.findData(model) if model is not None else -1
-        if index>=0: self.model.setCurrentIndex(index)
+        if index>=0:
+            self.model.blockSignals(True)
+            self.model.setCurrentIndex(index)
+            self.model.blockSignals(False)
+            self.update_model_controls()
         outcome = {'incomplete_unresolved':' · 模型结束，仍有未解决目标',
                    'cancelled':' · 部分日志：计算已停止'}.get(run['metadata'].get('completion',run['metadata'].get('outcome')),'')
         self.statusBar().showMessage(f"{run['metadata']['scenario']} · seed {run['metadata']['seed']} · {run['metadata']['strategy']}{outcome} · {run.get('directory','Replay')}")
