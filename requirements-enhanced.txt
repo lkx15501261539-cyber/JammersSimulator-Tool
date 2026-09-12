@@ -1,3 +1,7 @@
 # Python >=3.10; original CLI/MCP dependencies remain in requirements.txt
 PySide6>=6.6,<7
 pytest>=8,<10
+# Original Baseline v1 runtime requirements, unchanged version ranges
+numpy>=1.24,<3
+numba>=0.59,<1
+scipy>=1.10,<2

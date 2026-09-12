@@ -22,9 +22,9 @@ class ResponseClient:
     def exit(self): return self._call('/exit')
 
 
-def save_run(world, directory, metadata):
+def save_run(world, directory, metadata, existing=False):
     directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=False)
+    directory.mkdir(parents=True, exist_ok=existing)
     def write(name, value):
         (directory/name).write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False), encoding='utf-8')
     write('scenario.json', metadata)

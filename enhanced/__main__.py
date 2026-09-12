@@ -9,10 +9,12 @@ from .strategy import DEFAULT_Q1
 
 def main():
     parser = argparse.ArgumentParser(description='Enhanced Jammers simulation / desktop replay')
-    parser.add_argument('mode', choices=['gui', 'demo', 'batch', 'serve'])
+    parser.add_argument('mode', choices=['gui', 'demo', 'baseline', 'batch', 'serve'])
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--scenario', choices=SCENARIOS, default='uniform')
-    parser.add_argument('--error-model', choices=['deterministic_hash_fixed', 'worst_edge'], default='deterministic_hash_fixed')
+    parser.add_argument('--error-model', choices=['deterministic_hash_fixed', 'worst_edge', 'baseline_fixed_field'], default='deterministic_hash_fixed')
+    parser.add_argument('--model', choices=['hexagon_v1', 'spiral_v1'], default='hexagon_v1')
+    parser.add_argument('--archive', type=Path)
     parser.add_argument('--q1', type=Path, default=DEFAULT_Q1)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--replay', type=Path)
@@ -24,6 +26,11 @@ def main():
     if args.mode == 'gui':
         from .ui import launch
         launch(config, args.q1, args.replay)
+    elif args.mode == 'baseline':
+        from .baseline import run_baseline, default_archive
+        run = run_baseline(config, args.archive or default_archive(), args.model, output,
+                           progress=lambda p: print(f"{p['phase']} | {p['action_count']} actions | {p['virtual_time_s']:.1f} s", flush=True))
+        print(run['metadata'])
     elif args.mode == 'serve':
         from .server import make_server
         print(f'Enhanced Mock http://127.0.0.1:{args.port}; logs: {output}', flush=True)

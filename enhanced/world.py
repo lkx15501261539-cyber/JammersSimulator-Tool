@@ -19,7 +19,7 @@ class ScenarioConfig:
 
 
 def generate(config):
-    if config.scenario not in SCENARIOS or config.error_model not in ('deterministic_hash_fixed', 'worst_edge'):
+    if config.scenario not in SCENARIOS or config.error_model not in ('deterministic_hash_fixed', 'worst_edge', 'baseline_fixed_field'):
         raise ValueError('Unknown scenario or error model')
     rng = random.Random(config.seed)
     count = rng.randint(10, 16) if config.count is None else config.count
@@ -141,6 +141,8 @@ class World:
                         key = ':'.join([str(self.config.seed), str(c), *(float(v or 0).hex() for v in xy)])
                         h = int.from_bytes(hashlib.sha256(key.encode()).digest()[:8], 'big')
                         error = (1 if h%2 else -1) if self.config.error_model == 'worst_edge' else 2*h/(2**64-1)-1
+                        if self.config.error_model == 'baseline_fixed_field':
+                            error = .994*math.sin(.00637*xy[0]+.00413*xy[1]+1.713*c+.017*self.config.seed)
                         truth = math.degrees(math.atan2(source['y']-xy[1], source['x']-xy[0]))
                         angle = round((truth+error)%360, 2)%360
             base['measure_result'] = result

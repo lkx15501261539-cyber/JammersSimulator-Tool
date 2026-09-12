@@ -23,6 +23,14 @@ project's fixed-error experiments. Official client default remains port 2026.
   `source_type`/`orientation` fields and 180° directional sensing are supported;
   generated scenarios currently use only omnidirectional sources.
 
+## Baseline 1.0 integration
+
+Original packaged code and configuration are preserved byte for byte.
+`baseline_fixed_field` reproduces the original offline backend
+`0.994*sin(0.00637*x + 0.00413*y + 1.713*channel + 0.017*seed)` before
+rounding. It is the GUI default for baseline evaluation; it does not claim to be
+the official error field. See [integration validation](docs/BASELINE_INTEGRATION.md).
+
 ## Deliberate differences / unverified details
 
 - This is an independently implemented test double, not certified official behavior.
@@ -48,10 +56,12 @@ project's fixed-error experiments. Official client default remains port 2026.
 - Strategy separation is an API boundary, not a hostile-code sandbox: strategies
   receive only enter/measure/clear/exit methods and their responses. In-process Python
   reflection is not prevented. Run untrusted strategies in a separate process/service.
-- GUI Simulation computes a bounded demo in a worker thread, saves the run, then
+- GUI Simulation computes a selected original baseline (isolated process) or the Q1
+  demo (worker thread), saves the run, then
   continuously animates its virtual timeline. It is not live streaming while strategy
   execution is in progress. Replay never loads Q1 or executes the strategy.
-- Single run display supports candidate markers via `CandidatePoints`; no Q2/Q3
-  candidate selector, multi-source exploration policy, or Q4 experiment suite is supplied.
+- Single run display supports candidate markers via `CandidatePoints`. The original
+  Baseline v1 Q2/Q3 policies are now integrated from the user-provided ZIP; no new
+  policy or Q4 experiment suite is supplied.
 - Desktop source supports Python 3.10+ and Windows/macOS Qt. This change was tested
   on macOS; Windows execution and standalone .exe/.app packaging remain unverified.

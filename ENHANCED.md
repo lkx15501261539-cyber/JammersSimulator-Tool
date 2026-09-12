@@ -11,6 +11,17 @@ for assumptions, rounding boundaries, and incomplete official behavior.
 A saved demonstration is included: `python -m enhanced gui --replay examples/enhanced-demo`.
 This replay works without the adjacent Q1 repository.
 
+## Baseline 1.0 原代码模拟
+
+已支持原交付包中的六边形 7 点与螺旋 12 点模型。界面顶部选择模型和 ZIP，点击
+**开始模拟**，计算后自动播放。原模型代码和配置均保持不变。
+参见 [原代码核对与操作说明](docs/BASELINE_INTEGRATION.md)。
+
+```sh
+python -m enhanced baseline --model hexagon_v1 --seed 42 --error-model baseline_fixed_field
+python -m enhanced baseline --model spiral_v1 --seed 42 --error-model baseline_fixed_field
+```
+
 ## Setup and launch
 
 Use Python 3.10+ with the two repositories adjacent:
@@ -33,7 +44,7 @@ python -m pip install -r requirements-enhanced.txt
 python -m enhanced gui
 ```
 
-Select scenario, seed and error model, press **Simulation · 新建**, then **播放**.
+Select model, scenario, seed and error model, then press **开始模拟**. Playback starts automatically after calculation.
 The dog starts at (0,0) and moves continuously at 5 m/s virtual speed. Playback
 speeds: 0.5/1/2/5/10/20/50×. Pause, step to the next event completion, or drag the
 timeline in either direction. Wheel zoom and drag pan; 地图复位 restores the arena.
@@ -60,6 +71,8 @@ use the official simulator at 2026. See the original README for those commands.
 
 ```text
 enhanced/
+  baseline.py    unchanged Baseline ZIP verification and simulation bridge
+  baseline_worker.py  isolated original model execution
   world.py       scenario generation, private truth, rules and action events
   strategy.py    Client protocol, external Q1 loader, run_mission demo
   runner.py      response adapter, composition, run persistence

@@ -9,3 +9,5 @@ __pycache__/
 .pytest_cache/
 runs/
 artifacts/
+.cache/
+models/
