@@ -1,0 +1,77 @@
+name: Windows model launchers
+
+on:
+  push:
+    branches: [enhanced-mock]
+    paths:
+      - '.github/workflows/windows-models.yml'
+      - '*.bat'
+      - 'requirements*.txt'
+      - 'enhanced/**'
+      - 'model_sources/**'
+      - 'models/**'
+      - 'tests/**'
+      - 'tools/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-models:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: simulator 中文 path
+    steps:
+      # Official release: https://github.com/actions/checkout/releases/tag/v6.1.0
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          path: simulator 中文 path
+      # Official release: https://github.com/actions/setup-python/releases/tag/v6.3.0
+      - uses: actions/setup-python@v6.3.0
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: |
+            simulator 中文 path/requirements-enhanced.txt
+            simulator 中文 path/requirements-q3-v2.txt
+      - name: Prepare Python 3.12 environment
+        run: |
+          python -m venv .venv
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\.venv\Scripts\python.exe -m pip install -r requirements-enhanced.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+      - name: Run launchers and verify visible native windows
+        run: .\.venv\Scripts\python.exe tools/windows_smoke.py --output artifacts/windows-launchers.json
+      - name: Run simulator and Q3 v2 checks
+        if: ${{ !cancelled() }}
+        run: >-
+          .\.venv\Scripts\python.exe -m pytest -q
+          tests/test_model_launchers.py tests/test_baseline_v2.py
+          tests/test_baseline_v2_ui.py tests/test_q4_ui.py
+          tests/test_q4_adapter.py
+          --junitxml=artifacts/windows-model-tests.xml
+      # Separate Python process keeps the Q3 archive's cu module out of Q4.
+      - name: Run standalone Q4 core checks
+        if: ${{ !cancelled() }}
+        run: >-
+          .\.venv\Scripts\python.exe -m pytest -q model_sources/q4/test_q4.py
+          --junitxml=artifacts/windows-q4-core.xml
+      # Official release: https://github.com/actions/upload-artifact/releases/tag/v6.0.0
+      - name: Save Windows validation evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: windows-model-validation-${{ github.sha }}
+          path: simulator 中文 path/artifacts/
+          if-no-files-found: warn
+          retention-days: 30

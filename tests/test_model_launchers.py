@@ -1,6 +1,7 @@
-"""Standalone model release checks; Windows launchers are checked statically."""
+"""Release probes, launcher contracts, and Windows-only failure-path checks."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -63,9 +64,50 @@ def test_windows_launcher_contract(name, launch):
     assert '\r\n' in script and b'\n' not in raw.replace(b'\r\n', b'')
     assert 'pushd "%~dp0"' in script
     assert 'DisableDelayedExpansion' in script
+    assert 'set "PYTHONUTF8=1"' in script
+    assert 'set "PYTHONIOENCODING=utf-8"' in script
     assert launch in script
     assert '..\\CUMCM-2026' not in script
     labels = set(re.findall(r'^:(\w+)', script, re.MULTILINE))
     assert set(re.findall(r'\bgoto (\w+)', script, re.IGNORECASE)) <= labels
     assert 'pause\r\npopd\r\nexit /b %_' in script
     assert 'set "_' in script and '=%errorlevel%"' in script
+    # Double-clicking reaches the GUI. Only an explicit check flag bypasses it.
+    ready = script.split('\r\n:ready\r\n', 1)[1]
+    assert ready.startswith('if /i "%~1"=="--check-only" goto check_only\r\n\r\n:launch\r\n')
+    assert 'if /i not "%~1"=="--check-only" pause' in script
+
+
+def test_existing_desktop_shortcut_selects_v2_and_forwards_check_flag():
+    script = (ROOT / '启动界面.bat').read_text(encoding='ascii')
+    assert 'call "%~dp0start_q3_v2.bat" %*\nexit /b %errorlevel%' in script
+    assert 'DisableDelayedExpansion' in script
+    assert 'if /i not "%~1"=="--check-only" pause\nexit /b 1' in script
+
+
+@pytest.mark.parametrize('name', ['start_q3_v2.bat', 'start_q4.bat'])
+def test_launcher_probe_builds_selected_desktop_and_validates_model(name):
+    # Run the exact probe embedded in the BAT on any platform. Execution of
+    # cmd.exe and the normal visible Windows window are separate validation.
+    script = (ROOT / name).read_text(encoding='ascii')
+    block = script.split('\n:check_only\n', 1)[1].split('\n:success\n', 1)[0]
+    command = next(line for line in block.splitlines()
+                   if line.startswith('".venv\\Scripts\\python.exe" -c "'))
+    code = command.split(' -c "', 1)[1][:-1]
+    result = subprocess.run([sys.executable, '-c', code], cwd=ROOT,
+                            capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'PASS:' in result.stdout
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Requires Windows cmd.exe')
+@pytest.mark.parametrize('name', ['start_q3_v2.bat', 'start_q4.bat', '启动界面.bat'])
+def test_windows_missing_files_exits_without_waiting_for_input(tmp_path, name):
+    folder = tmp_path / '中文 path with spaces'
+    folder.mkdir()
+    launcher = folder / name
+    shutil.copyfile(ROOT / name, launcher)
+    result = subprocess.run(['cmd.exe', '/d', '/c', 'call', str(launcher), '--check-only'],
+                            cwd=tmp_path, capture_output=True, timeout=15)
+    assert result.returncode == 1
+    assert b'not found' in result.stdout

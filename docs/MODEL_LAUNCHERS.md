@@ -5,6 +5,7 @@
 
 | 文件 | 打开的模型 | 模型来源 |
 | --- | --- | --- |
+| `启动界面.bat` | 默认第三问 Baseline 2.0，可在界面切换模型 | 转调 Q3 v2 启动器 |
 | `start_q3_v2.bat` | 第三问六边形 7 点 Baseline 2.0 | `models/Baseline_v2.0_七点六边形.zip` |
 | `start_q4.bat` | 第四问 25 点 C/U | `model_sources/q4/` |
 
@@ -13,7 +14,7 @@
 
 两个脚本均在模拟器目录内使用 `.venv`。Q3 v2.0 使用
 `requirements-q3-v2.txt`，包含原交付包的 numpy、numba、scipy、mpmath 版本范围
-及桌面依赖 PySide6；每次启动先让 pip 核对依赖，已满足的依赖不强制升级。
+及桌面依赖 PySide6；启动时先在本地核对版本及可导入状态，满足后直接离线启动，缺少或版本不符时才调用 pip 安装。
 Q4 模型本身只使用标准库，桌面需要 PySide6。
 
 若环境创建、依赖准备或模型启动失败，窗口会保留错误并暂停，退出状态也会返回
@@ -27,5 +28,6 @@ python -m enhanced gui --model hexagon_v2 --error-model baseline_fixed_field
 python -m enhanced gui --problem 4 --error-model worst_edge
 ```
 
-本次开发主机为 macOS。已做模型源码一致性、独立仓库加载和脚本静态检查；
-没有在真实 Windows 系统上验证双击、中文路径、依赖下载及 Qt 窗口行为。
+两个启动器都支持 `--check-only`：执行相同的环境准备、校验模型并创建 Qt 窗口后退出，不在失败时等待键盘输入。普通双击仍打开可见窗口。脚本只在自己的进程中启用 UTF-8，不改变系统区域或编码设置。
+
+完整 Windows 交付包见 [交付说明](WINDOWS_DELIVERY.md)，包内保留“启动界面.bat”旧名称；过去下载的 ZIP 不会自动更新。

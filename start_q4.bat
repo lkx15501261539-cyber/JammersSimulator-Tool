@@ -1,5 +1,7 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
 pushd "%~dp0"
 if errorlevel 1 goto location_failed
 
@@ -27,12 +29,15 @@ goto check_environment
 :check_environment
 ".venv\Scripts\python.exe" -c "import sys, struct; sys.exit(0 if sys.version_info >= (3, 10) and struct.calcsize('P') == 8 else 1)" >nul 2>&1
 if errorlevel 1 goto invalid_environment
-".venv\Scripts\python.exe" -c "from PySide6 import QtWidgets" >nul 2>&1
-if not errorlevel 1 goto launch
+".venv\Scripts\python.exe" -c "from PySide6 import QtWidgets, __version_info__; assert (6, 6) <= __version_info__ < (7,)" >nul 2>&1
+if not errorlevel 1 goto ready
 
 echo Installing the Q4 desktop dependency. Internet access is required once.
 ".venv\Scripts\python.exe" -m pip install "PySide6>=6.6,<7"
 if errorlevel 1 goto dependency_failed
+
+:ready
+if /i "%~1"=="--check-only" goto check_only
 
 :launch
 echo Starting Q4: 25-point C/U model...
@@ -41,7 +46,16 @@ set "_q4_exit=%errorlevel%"
 if "%_q4_exit%"=="0" goto success
 echo.
 echo Q4 could not start. Read the error above before closing this window.
-pause
+if /i not "%~1"=="--check-only" pause
+popd
+exit /b %_q4_exit%
+
+:check_only
+echo Checking the Q4 model, discovery certificate, and desktop window...
+".venv\Scripts\python.exe" -c "from enhanced.q4_adapter import _controller_module; model=_controller_module(); assert model.discovery_certificate(model.search_points())['passed']; from PySide6.QtWidgets import QApplication; from enhanced.ui import Window; from enhanced.world import ScenarioConfig; from enhanced.strategy import DEFAULT_Q1; app=QApplication(['launcher-check', '-platform', 'offscreen']); w=Window(ScenarioConfig(problem=4, error_model='worst_edge'), DEFAULT_Q1); w.show(); app.processEvents(); assert w.model.currentData() == 'q4_cu'; w.close(); print('PASS: Q4 model, discovery certificate, and desktop window')"
+set "_q4_exit=%errorlevel%"
+if "%_q4_exit%"=="0" goto success
+echo Q4 validation failed. Read the error above.
 popd
 exit /b %_q4_exit%
 
@@ -52,7 +66,7 @@ exit /b 0
 :missing_model
 echo Q4 model files were not found in model_sources\q4.
 echo Extract the entire simulator repository before starting.
-pause
+if /i not "%~1"=="--check-only" pause
 popd
 exit /b 1
 
@@ -60,30 +74,30 @@ exit /b 1
 echo Python 3.10 or newer was not found.
 echo Install 64-bit Python for Windows and enable the Python launcher or PATH option.
 echo Then double-click this launcher again.
-pause
+if /i not "%~1"=="--check-only" pause
 popd
 exit /b 1
 
 :environment_failed
 echo Failed to create the local Python environment. Read the error above.
-pause
+if /i not "%~1"=="--check-only" pause
 popd
 exit /b 1
 
 :invalid_environment
 echo The existing .venv is incompatible or its Python executable is unavailable.
 echo Rename the .venv folder to keep a backup, then run this launcher again.
-pause
+if /i not "%~1"=="--check-only" pause
 popd
 exit /b 1
 
 :dependency_failed
 echo PySide6 installation failed. Check the network and the error above, then retry.
-pause
+if /i not "%~1"=="--check-only" pause
 popd
 exit /b 1
 
 :location_failed
 echo Cannot open the simulator directory. Extract the full ZIP to a writable folder.
-pause
+if /i not "%~1"=="--check-only" pause
 exit /b 1
