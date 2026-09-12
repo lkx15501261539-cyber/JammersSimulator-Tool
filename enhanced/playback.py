@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 
 
 SLOW_ACTIONS = frozenset({'Measure', 'ChannelSwitch', 'Clear'})
-ACTION_SPEED_LIMIT = 5.0
+ACTION_SPEED_LIMIT = 1.0
 
 
 def _finite_number(value, name):
@@ -26,13 +26,13 @@ def advance_playback(
     current_time: float,
     real_dt: float,
     speed: float,
-    slow_actions: bool = True,
+    slow_actions: bool = False,
 ) -> float:
     """Advance a replay by ``real_dt`` wall-clock seconds and return virtual time.
 
     ``events`` must have ordered, nonoverlapping ``start``/``end`` intervals,
     as checked by ``replay.validate``. Movement and gaps use ``speed``; when
-    enabled, measurement, channel switching, and clearing use at most 5x.
+    enabled, measurement, channel switching, and clearing use at most 1x.
     Unspent wall time carries through every crossed boundary, so a fast move
     cannot carry its movement rate into the next short action.
 

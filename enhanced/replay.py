@@ -37,6 +37,10 @@ def project(events, t):
                      action_channel=None, heading_deg=0., gait_phase=0.,
                      last_measure_time=None, last_clear_time=None, latest_clear=None,
                      latest_localization_time=None)
+    strategy = dict(available=False, unavailable_reason='此日志未记录原模型的规划状态。',
+                    route_points=[], tasks=[], candidates=[], current_target=None,
+                    channel_iterations={}, pending_targets=[])
+    focus_channel = None
     for e in events:
         if e['start'] > t:
             break
@@ -93,6 +97,7 @@ def project(events, t):
             state['clear_actions'].append(d)
             if d['result'] == 'success':
                 state['cleared'].add(d['channel'])
+                if focus_channel == d['channel']:focus_channel = None
             else:
                 state['failed_clear_count'] += 1
         elif kind == 'LocalizationUpdate':
@@ -100,6 +105,14 @@ def project(events, t):
             state['localizations'][d['channel']] = d
         elif kind == 'CandidatePoints':
             state['candidates'] = d['points']
+        elif kind == 'StrategyState':
+            strategy = d
+            target=d.get('current_target') or {}
+            if d.get('phase')=='service' or target.get('role') in ('selected_service','target_followup','mec','near'):
+                candidate=target.get('channel')
+                if candidate is None:
+                    candidate=next((task.get('channel') for task in d.get('tasks',[]) if task.get('channel') is not None),None)
+                if candidate is not None and candidate not in state['cleared']:focus_channel=candidate
         elif kind == 'MissionEnd':
             state['status'] = 'mission ended'
     # A fixed stride length keeps foot placement stable when paused or scrubbed.
@@ -107,6 +120,26 @@ def project(events, t):
     state['animation'] = animation
     state['heading_deg'] = animation['heading_deg']
     state['action_phase'] = animation['phase']
+    # Copy only the last known snapshot. Future snapshots never enter the UI;
+    # copying every historical snapshot would add unnecessary frame work.
+    state['strategy'] = copy.deepcopy(strategy)
+    route = state['strategy'].setdefault('route_points', [])
+    for waypoint in route:
+        point = waypoint['position']
+        visited = any(math.dist(point, xy) <= 1e-6 for xy in state['trajectory'])
+        if not visited:
+            for origin, destination in zip(state['trajectory'], state['trajectory'][1:]):
+                dx, dy = destination[0]-origin[0], destination[1]-origin[1]
+                norm = dx*dx+dy*dy
+                if not norm:
+                    continue
+                ratio = max(0., min(1., ((point[0]-origin[0])*dx+(point[1]-origin[1])*dy)/norm))
+                if math.hypot(point[0]-origin[0]-ratio*dx, point[1]-origin[1]-ratio*dy) <= 1e-6:
+                    visited = True
+                    break
+        waypoint['visited'] = visited
+    state['route_points'] = route
+    state['localization_focus_channel'] = focus_channel
     return state
 
 

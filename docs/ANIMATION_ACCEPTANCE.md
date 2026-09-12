@@ -1,6 +1,8 @@
 # 连续动画与桌面操作验收
 
-记录日期：2026-09-12。此页记录本轮动画升级的实现范围和已完成核验；早期规则与
+记录日期：2026-09-12。此页保留前一轮动画验收；最新浅色地图、默认统一 1×、固定点及任务队列见 [PLANNING_VIEW.md](PLANNING_VIEW.md)。
+
+此页记录本轮动画升级的实现范围和已完成核验；早期规则与
 Baseline 接入结果分别见 [VALIDATION.md](VALIDATION.md) 与
 [BASELINE_INTEGRATION.md](BASELINE_INTEGRATION.md)。后两份文件中的测试数量属于
 对应阶段，不作为本轮完整测试数量。

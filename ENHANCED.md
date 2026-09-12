@@ -51,7 +51,7 @@ python -m enhanced gui
 Select model, scenario, seed and error model, then press **开始模拟**. Playback starts automatically after calculation.
 The dog starts at (0,0) and moves continuously at 5 m/s virtual speed. Playback
 speeds: 0.5/1/2/5/10/20/50×. Pause, step to the next event completion, or drag the
-timeline in either direction. Wheel zoom and drag pan; **全域视角** restores the arena.
+timeline in either direction. Two-finger trackpad scrolling pans; pinch or Ctrl/Command + scroll zooms. Mouse wheel, +/− buttons and the zoom slider also zoom; **全域视角** restores the arena.
 The map uses east +x, north +y. Truth and reception radii are observer overlays;
 only observations and localization results reach the strategy.
 
@@ -59,11 +59,11 @@ only observations and localization results reach the strategy.
 
 地图现在绘制带机身、关节、四足、传感器和天线的机器狗，以及带频道标识的信号设备。
 机器狗沿已执行路线连续行进，朝向随路线改变，行进时四足交替摆动；测量时有天线旋转、
-扩散波纹和扫描效果。右侧遥测与底部虚拟时间同步更新。深色地图含坐标网格、圆域边界、
+扩散波纹和扫描效果。右侧任务队列、各源迭代与底部虚拟时间同步更新。浅色地图含坐标网格、圆域边界、
 起点停靠标记、指北针和随缩放变化的比例尺。
 
 **初次观看：**选择六边形或螺旋模型及原 ZIP，保留默认误差模型，点击 **开始模拟**。
-计算完成后自动播放。默认启用 **近景画面** 和 **动作慢放**，默认速度为 20×；
+计算完成后自动播放。默认启用 **近景画面**，播放速度为 **1×**，所有动作使用同一时间比例；
 可改为 50× 快速看完整路径，或暂停后查看定位细节。
 
 | 控件 | 作用 |
@@ -72,7 +72,11 @@ only observations and localization results reach the strategy.
 | 单步；右方向键 | 暂停并前进到下一个事件完成时刻 |
 | 底部时间轴 | 向前或向后定位；从日志重建画面，不重新计算模型 |
 | 0.5× / 1× / 2× / 5× / 10× / 20× / 50× | 选择观看速度 |
-| 动作慢放 | 行进使用所选速度，测量、切频和清除最高使用 5×；不改变模型结果和虚拟耗时 |
+| 统一时间比例 | 默认 1×，移动、扫描、切频和清除均按真实虚拟耗时播放；手动改倍速会对所有动作统一生效，不自动变速 |
+| + / −、缩放条 | 平滑调整地图比例；触控板双指平移，捏合或 Ctrl / ⌘ + 双指滑动缩放 |
+| 任务与队列 | 当前任务和坐标、已确定执行顺序、待调度目标及每个干扰源的追加测点次数 |
+| 完整指标 | 所有遥测、频道状态和动作分项用时 |
+| 当前目标定位放大 | 有示向观测的处理任务自动打开测点总览与定位放大；成功清除后自动收起 |
 | 跟随机器狗 | 将机器狗置于地图中央，并使用更近的地图视角 |
 | 全域视角 | 关闭跟随，恢复整个 1800 m 圆域 |
 | 近景画面 | 显示左下角机器狗动作特写、当前动作进度和坐标；地图区域太小时自动隐藏特写 |
@@ -84,7 +88,9 @@ only observations and localization results reach the strategy.
 | 导出统计 | 导出当前日志的**整局最终统计**为 CSV，包含 seed、场景、策略及分项用时；不取决于时间轴当前进度 |
 | 保存画面 | 将当前完整窗口保存为 PNG，可先暂停、缩放或调整图层 |
 
-已执行轨迹为青色实线，当前移动目的地以虚线连接。测向完成后才出现示向中心线与
+固定测点直接读取原配置：未到访为蓝色，已到访为绿色，按 P1…Pn 标记；原点在任务开始时即为已到访。
+首次启动也会预览固定点。源设备未清除为橙色，已清除为绿色并带勾。
+已执行轨迹为青色实线，固定路线为浅蓝虚线，当前移动目的地以虚线连接。测向完成后才出现示向中心线与
 ±1° 楔形；当前频道的定位区域、最远点对和直径圆使用紫色。清除过程中显示 20 m
 搜索圆，完成后才显示成功或失败颜色及短暂扩散效果。真实动作顺序与结果来自日志，
 不会为动画添加额外测量、移动或成功结果。
@@ -92,7 +98,9 @@ only observations and localization results reach the strategy.
 图标为便于观察采用示意尺寸，机器狗中心十字对应真实坐标。近景是动作示意，不是
 相机采集画面；背景纹理是装饰，不表示地形障碍。原模型清除判据使用的最小包围圆与
 图中 Q1 直径圆可能不同，`Circle covers` 始终表示 Q1 直径圆的覆盖结果。
-本轮核验及手动验收步骤见 [动画验收记录](docs/ANIMATION_ACCEPTANCE.md)。
+当前队列记录、迭代计数口径和原模型一致性验证见 [任务观察说明](docs/PLANNING_VIEW.md)。
+此前的动画阶段验收见 [动画验收记录](docs/ANIMATION_ACCEPTANCE.md)。
+新日志通过只读观察原 Controller 记录 StrategyState；旧日志缺少队列信息时会明确提示，不能据未来轨迹伪造当前计划。
 
 ## Simulation, Replay and command-line tools
 
@@ -118,14 +126,17 @@ use the official simulator at 2026. See the original README for those commands.
 enhanced/
   baseline.py    unchanged Baseline ZIP verification and simulation bridge
   baseline_worker.py  isolated original model execution
+  strategy_observer.py  copies original controller state without changing policy
   world.py       scenario generation, private truth, rules and action events
   strategy.py    Client protocol, external Q1 loader, run_mission demo
   runner.py      response adapter, composition, run persistence
   replay.py      event validation, time projection, animation context and metrics
   ui.py          desktop controls, simulation worker and observer composition
-  map_view.py    layered QGraphicsView map, overlays, follow camera and closeup
+  map_view.py    light QGraphicsView map, fixed route, smooth gestures and closeup
+  mission_panel.py  current task, recorded queue and channel iteration tables
+  localization_view.py  active-target bearing overview and region enlargement
   robot_art.py   vector robot, animated legs, antenna and signal equipment
-  playback.py    presentation clock with optional action slowdown
+  playback.py    uniform playback clock; optional legacy slowdown API only
   exports.py     whole-run CSV metrics without rerunning the strategy
   server.py      sequential REST mock on 2027
   __main__.py    gui / baseline / demo / serve / batch commands
@@ -153,7 +164,7 @@ Clearing does not change the receiver channel. Basic request validation and
 `Move`, `ChannelSwitch`, `Measure`, `Clear` carry start/end virtual seconds; results
 become visible only at end. `LocalizationUpdate` carries float display geometry,
 status, measurement count, farthest pair, diameter, circle and coverage result.
-`MissionStart`, `MissionEnd` and `CandidatePoints` are instantaneous. Sequence numbers
+`MissionStart`, `MissionEnd`, `CandidatePoints` and `StrategyState` are instantaneous. Sequence numbers
 break ties; replay rejects nonmonotone or reordered logs. Full precision Q1 values
 remain in the model during decisions; only observer geometry is converted to floats.
 

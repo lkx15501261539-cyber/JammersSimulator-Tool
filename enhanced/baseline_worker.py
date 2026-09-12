@@ -9,12 +9,15 @@ import traceback
 def main():
     model_dir, output = map(Path, sys.argv[1:3])
     wire_out = sys.stdout
+    observer = None
     sys.stdout = sys.stderr  # Third-party prints must never corrupt the JSON pipe.
     def send(message):
         wire_out.write(json.dumps(message, ensure_ascii=False, allow_nan=False)+'\n')
         wire_out.flush()
     class PipeBackend:
         def exchange(self, path, payload):
+            if observer is not None:
+                observer.requested(path, payload)
             send(dict(kind='request', path=path, payload=payload))
             line = sys.stdin.readline()
             if not line:
@@ -30,7 +33,9 @@ def main():
         send(dict(kind='phase', phase='预热原模型计算模块'))
         module.warmup()
         send(dict(kind='phase', phase='执行原模型路线与测点规划'))
-        result, error = module.execute(config, output, PipeBackend(), robot_id='BASELINE-SIM', live=False)
+        from .strategy_observer import observe_controller
+        with observe_controller(module, lambda data: send(dict(kind='strategy_state', data=data))) as observer:
+            result, error = module.execute(config, output, PipeBackend(), robot_id='BASELINE-SIM', live=False)
         send(dict(kind='result', result=module.jsonable(result), error=error))
     except Exception:
         send(dict(kind='error', error=traceback.format_exc()))

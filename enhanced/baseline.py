@@ -77,7 +77,7 @@ def run_baseline(config: ScenarioConfig, archive, model, output, progress=None, 
     world = World(config)
     localize = load_q1(directory/'第一问.py')
     metadata = dict(schema_version=1, **asdict(config), strategy=MODEL_LABELS[model],
-                    strategy_version='baseline-v1.0', baseline_model=model, **provenance,
+                    strategy_version='baseline-v1.0', baseline_model=model, strategy_observer_schema=1, **provenance,
                     q1_sha256=provenance['model_files_sha256']['第一问.py'])
     env = os.environ.copy()
     cache = CACHE/'runtime-cache'; cache.mkdir(parents=True,exist_ok=True)
@@ -116,6 +116,8 @@ def run_baseline(config: ScenarioConfig, archive, model, output, progress=None, 
             kind=message['kind']
             if kind=='phase':
                 phase=message['phase']
+            elif kind=='strategy_state':
+                world.emit('StrategyState', **message['data'])
             elif kind=='request':
                 path,payload=message['path'],message['payload']
                 response=world.request(path,payload)

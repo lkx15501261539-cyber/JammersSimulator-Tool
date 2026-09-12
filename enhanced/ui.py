@@ -9,13 +9,15 @@ from PySide6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath, QPolygon
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGraphicsView, QGraphicsScene, QPushButton, QComboBox, QSpinBox, QLabel, QSlider,
     QCheckBox, QFileDialog, QMessageBox, QSplitter, QFormLayout, QGroupBox, QScrollArea,
-    QLineEdit, QProgressBar)
+    QLineEdit, QProgressBar, QTabWidget, QDockWidget)
 from .world import ScenarioConfig, SCENARIOS
 from .replay import project, load_run
 
 
 from .map_view import MapView, action_range
 from .playback import advance_playback
+from .mission_panel import MissionPanel
+from .localization_view import LocalizationView
 
 
 class SimulationWorker(QThread):
@@ -112,10 +114,22 @@ class Window(QMainWindow):
         self.labels.toggled.connect(lambda checked:self.map.set_annotations(checked))
         toggles.addWidget(self.truth); toggles.addWidget(self.radii)
         toggles.addWidget(self.follow); toggles.addWidget(self.detail); toggles.addWidget(self.labels)
-        toggles.addStretch(); toggles.addWidget(reset)
+        toggles.addStretch()
+        self.zoom_out=QPushButton('−');self.zoom_out.setAccessibleName('缩小地图')
+        self.zoom_in=QPushButton('+');self.zoom_in.setAccessibleName('放大地图')
+        self.zoom_out.setFixedWidth(34);self.zoom_in.setFixedWidth(34)
+        self.zoom_slider=QSlider(Qt.Orientation.Horizontal);self.zoom_slider.setRange(-100,400)
+        self.zoom_slider.setFixedWidth(110);self.zoom_slider.setAccessibleName('地图缩放比例')
+        self.zoom_value=QLabel('100%');self.zoom_value.setMinimumWidth(44)
+        self.zoom_slider.setToolTip('拖动调整缩放；触控板可双指平移、捏合缩放，或按住 Ctrl / ⌘ 双指滑动缩放。')
+        for widget in (self.zoom_out,self.zoom_slider,self.zoom_in,self.zoom_value,reset):toggles.addWidget(widget)
         layout.addLayout(toggles)
         splitter = QSplitter()
         self.map = MapView(); splitter.addWidget(self.map)
+        self.zoom_out.clicked.connect(self.map.zoom_out);self.zoom_in.clicked.connect(self.map.zoom_in)
+        self.zoom_slider.valueChanged.connect(lambda value:self.map.set_zoom(2**(value/100)))
+        self.map.zoom_changed.connect(self.update_zoom)
+        self.map.follow_changed.connect(self.follow.setChecked)
         panel = QWidget(); side = QVBoxLayout(panel)
         group = QGroupBox('任务遥测  /  TELEMETRY'); form = QFormLayout(group)
         self.values = {}
@@ -137,27 +151,43 @@ class Window(QMainWindow):
         side.addWidget(channel_group)
         self.note = QLabel(); self.note.setWordWrap(True)
         side.addWidget(self.note); side.addStretch()
-        scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setWidget(panel); scroll.setMinimumWidth(325)
-        splitter.addWidget(scroll); splitter.setSizes([950,350]); layout.addWidget(splitter,1)
+        scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setWidget(panel)
+        self.mission_panel=MissionPanel()
+        mission_scroll=QScrollArea();mission_scroll.setWidgetResizable(True);mission_scroll.setWidget(self.mission_panel)
+        self.side_tabs=QTabWidget();self.side_tabs.setMinimumWidth(395)
+        self.side_tabs.addTab(mission_scroll,'任务与队列');self.side_tabs.addTab(scroll,'完整指标')
+        splitter.addWidget(self.side_tabs); splitter.setSizes([1000,420]); layout.addWidget(splitter,1)
         self.timeline = QSlider(Qt.Orientation.Horizontal); self.timeline.setRange(0,100000)
         self.timeline.valueChanged.connect(self.seek); layout.addWidget(self.timeline)
         controls = QHBoxLayout()
         self.play = QPushButton('▶ 播放'); self.play.clicked.connect(self.toggle_play)
         self.step_button = QPushButton('单步 →'); self.step_button.clicked.connect(self.step)
-        self.speed = QComboBox(); self.speed.addItems(['0.5x','1x','2x','5x','10x','20x','50x']); self.speed.setCurrentText('20x')
-        self.slow = QCheckBox('动作慢放'); self.slow.setChecked(True)
-        self.slow.setToolTip('行进按所选倍速；测量、切频、清除最高 5x 播放。只改变观看节奏，虚拟时间与模型结果不变。')
+        self.speed = QComboBox(); self.speed.addItems(['0.5x','1x','2x','5x','10x','20x','50x']); self.speed.setCurrentText('1x')
+        self.speed.setToolTip('所有动作统一使用所选倍速；默认 1x，不自动调整行进或扫描速度。')
         self.clock = QLabel('0.0 / 0.0 s')
         for widget in (self.play,self.step_button,QLabel('速度'),self.speed,self.clock): controls.addWidget(widget)
-        controls.addWidget(self.slow); controls.addStretch()
+        controls.addStretch()
+        self.details_button=QPushButton('定位详图');self.details_button.setEnabled(False)
+        self.details_button.setToolTip('重新打开当前目标的测点与定位放大区。')
+        self.details_button.clicked.connect(lambda:self.localization_dock.show())
+        controls.addWidget(self.details_button)
         self.open_run = QPushButton('本局日志'); self.open_run.clicked.connect(self.open_run_directory)
         self.export = QPushButton('导出统计'); self.export.clicked.connect(self.export_metrics)
         self.screenshot = QPushButton('保存画面'); self.screenshot.clicked.connect(self.save_screenshot)
         for button in (self.open_run,self.export,self.screenshot):controls.addWidget(button)
         layout.addLayout(controls)
+        self.localization_view=LocalizationView()
+        self.localization_dock=QDockWidget('当前目标定位放大',self)
+        self.localization_dock.setObjectName('localizationDetail')
+        self.localization_dock.setWidget(self.localization_view)
+        self.localization_dock.setMinimumWidth(315)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,self.localization_dock)
+        self.resizeDocks([self.localization_dock],[335],Qt.Orientation.Horizontal)
+        self.localization_dock.hide();self._last_detail_channel=None
         QShortcut(QKeySequence('Space'),self,activated=self.toggle_play)
         QShortcut(QKeySequence('Right'),self,activated=self.step)
         self.model.currentIndexChanged.connect(self.update_model_controls)
+        self.archive.editingFinished.connect(self.preview_route)
         self.update_model_controls()
         self.set_busy(False)
         self.statusBar().showMessage('选择模型与场景，点击“开始模拟”。计算完成后自动播放完整轨迹。')
@@ -165,9 +195,12 @@ class Window(QMainWindow):
         self.timer = QTimer(self); self.timer.timeout.connect(self.tick); self.timer.start(33)
         if replay:
             run=load_run(replay);run['directory']=str(Path(replay).resolve());self.set_run(run)
-        else: self.map.draw(project([],0),[],False,False)
+        else:self.preview_route()
     def reset_camera(self):
         self.follow.setChecked(False); self.map.reset_view()
+    def update_zoom(self,factor):
+        self.zoom_slider.blockSignals(True);self.zoom_slider.setValue(round(100*math.log2(factor)));self.zoom_slider.blockSignals(False)
+        self.zoom_value.setText(f'{factor*100:.0f}%')
     def open_run_directory(self):
         if self.run_data and self.run_data.get('directory'):
             QDesktopServices.openUrl(QUrl.fromLocalFile(self.run_data['directory']))
@@ -190,6 +223,20 @@ class Window(QMainWindow):
         self.archive.setEnabled(baseline and not busy)
         self.browse_archive.setEnabled(baseline and not busy)
         self.update_note()
+        self.preview_route()
+    def preview_route(self):
+        if self.run_data is not None:return
+        state=project([],0)
+        model=self.model.currentData()
+        if model in ('hexagon_v1','spiral_v1'):
+            try:
+                import json,zipfile
+                with zipfile.ZipFile(Path(self.archive.text()).expanduser()) as archive:
+                    config=json.loads(archive.read(model+'/config.json'))
+                state['route_points']=[dict(index=i,position=point,visited=False) for i,point in enumerate(config['points'])]
+            except (OSError,ValueError,KeyError,zipfile.BadZipFile):pass
+        self.map.draw(state,[],False,False)
+        self.mission_panel.route_progress.setText(f"固定测点 {len(state.get('route_points',[]))} 个 · 尚未开始")
     def update_note(self):
         metadata = self.run_data['metadata'] if self.run_data else {}
         outcome = metadata.get('completion',metadata.get('outcome'))
@@ -204,11 +251,11 @@ class Window(QMainWindow):
                 text += '\n未解决频道：'+', '.join(map(str,metadata['unresolved_channels']))
         elif outcome == 'cancelled':
             text += '\n本日志为中途停止的部分任务。'
-        self.note.setText(text+'\n滚轮缩放，拖动地图。')
+        self.note.setText(text+'\n触控板双指平移、捏合缩放；也可使用 + / − 和缩放条。')
     def select_archive(self):
         path,_ = QFileDialog.getOpenFileName(self,'选择 Baseline 1.0 模型交付包',self.archive.text(),
                                              'ZIP 压缩包 (*.zip);;所有文件 (*)')
-        if path: self.archive.setText(path)
+        if path:self.archive.setText(path);self.preview_route()
     def set_busy(self,busy):
         for widget in (self.new,self.model,self.scenario,self.seed,self.error,self.open_button): widget.setEnabled(not busy)
         baseline = self.model.currentData() != 'q1_demo'
@@ -276,6 +323,7 @@ class Window(QMainWindow):
             except Exception as exc: self.show_error(str(exc))
     def set_run(self,run):
         self.run_data, self.t, self.playing = run,0.,False
+        self.localization_view.reset_selection();self.localization_dock.hide();self._last_detail_channel=None
         self.map.label_signature=None
         for key,control in (('scenario',self.scenario),('error_model',self.error)):
             if run['metadata'].get(key):control.setCurrentText(run['metadata'][key])
@@ -311,7 +359,7 @@ class Window(QMainWindow):
     def tick(self):
         now = time.monotonic(); elapsed = now-self.last_tick; self.last_tick=now
         if self.playing:
-            self.t = advance_playback(self.run_data['events'],self.t,elapsed,float(self.speed.currentText()[:-1]),self.slow.isChecked())
+            self.t = advance_playback(self.run_data['events'],self.t,elapsed,float(self.speed.currentText()[:-1]),slow_actions=False)
             if self.t >= self.duration:
                 self.playing=False; self.play.setText('▶ 播放')
             self.render()
@@ -319,6 +367,14 @@ class Window(QMainWindow):
         if not self.run_data: return
         s = project(self.run_data['events'],self.t)
         self.map.draw(s,self.run_data['sources'],self.truth.isChecked(),self.radii.isChecked())
+        self.mission_panel.update_state(s,self.run_data['sources'],self.truth.isChecked())
+        detail_active=self.localization_view.update_state(s)
+        self.details_button.setEnabled(detail_active)
+        channel=self.localization_view.channel if detail_active else None
+        if channel!=self._last_detail_channel:
+            self._last_detail_channel=channel
+            self.localization_dock.setWindowTitle(self.localization_view.title if detail_active else '当前目标定位放大')
+            self.localization_dock.setVisible(detail_active)
         loc = s['localizations'].get(s['channel'],{})
         vals = {'Virtual Time':f'{self.t:.1f} s','Position':f"({s['position'][0]:.1f}, {s['position'][1]:.1f}) m",
                 'Current Channel':s['channel'],'Detected':len(s['detected']),

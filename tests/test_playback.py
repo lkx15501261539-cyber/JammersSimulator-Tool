@@ -6,6 +6,10 @@ import pytest
 from enhanced.playback import advance_playback
 
 
+def slow_playback(*args):
+    return advance_playback(*args, slow_actions=True)
+
+
 @pytest.fixture
 def events():
     intervals = [
@@ -23,29 +27,35 @@ def events():
 
 
 def test_fast_move_enters_switch_at_capped_rate(events):
-    # 0.02 real seconds finish the move; 0.08 seconds advance the switch 0.4 s.
-    assert advance_playback(events, 9., .1, 50.) == pytest.approx(10.4)
+    # 0.02 real seconds finish the move; 0.08 seconds advance the switch 0.08 s.
+    assert slow_playback(events, 9., .1, 50.) == pytest.approx(10.08)
 
 
 def test_remaining_real_time_carries_from_move_through_switch_into_measure(events):
-    # Move: 0.02 s, switch: 0.2 s, measure: the remaining 0.18 s at 5x.
-    assert advance_playback(events, 9., .4, 50.) == pytest.approx(11.9)
-    assert advance_playback(events, 10.99, .01, 50.) == pytest.approx(11.04)
+    # Move: 0.02 s, switch: 1 s, measure: the remaining 0.38 s at 1x.
+    assert slow_playback(events, 9., 1.4, 50.) == pytest.approx(11.38)
+    assert slow_playback(events, 10.99, .05, 50.) == pytest.approx(11.04)
 
 
 def test_clear_uses_cap_then_following_move_restores_selected_speed(events):
-    assert advance_playback(events, 16., .1, 50.) == pytest.approx(16.5)
-    # The last second of clearing takes 0.2 real seconds; movement gets 0.05 s.
-    assert advance_playback(events, 20., .25, 50.) == pytest.approx(23.5)
+    assert slow_playback(events, 16., .1, 50.) == pytest.approx(16.1)
+    # The last second of clearing takes 1 real second; movement gets 0.05 s.
+    assert slow_playback(events, 20., 1.05, 50.) == pytest.approx(23.5)
 
 
 def test_slow_motion_never_accelerates_slower_selected_speed(events):
-    assert advance_playback(events, 10., 2., .5) == pytest.approx(11.)
-    assert advance_playback(events, 11., 1., 2.) == pytest.approx(13.)
+    assert slow_playback(events, 10., 2., .5) == pytest.approx(11.)
+    assert slow_playback(events, 11., 1., 2.) == pytest.approx(12.)
+
+
+def test_scanning_switching_and_clearing_keep_their_real_duration(events):
+    assert slow_playback(events, 10., 1., 50.) == pytest.approx(11.)
+    assert slow_playback(events, 11., 5., 50.) == pytest.approx(16.)
+    assert slow_playback(events, 16., 5., 50.) == pytest.approx(21.)
 
 
 def test_disabled_slow_motion_uses_uniform_selected_speed(events):
-    assert advance_playback(events, 9., .2, 50., slow_actions=False) == pytest.approx(19.)
+    assert advance_playback(events, 9., .2, 50.) == pytest.approx(19.)
 
 
 def test_zero_time_and_zero_speed_pause_at_clamped_time(events):
@@ -61,12 +71,12 @@ def test_end_clamping_empty_replay_and_zero_duration_events(events):
     assert advance_playback(events, 99., 1., 50.) == 31.
     assert advance_playback([], 5., 1., 50.) == 0.
     assert advance_playback([dict(type='MissionEnd', start=0., end=0.)], 0., 1., 50.) == 0.
-    assert advance_playback(events, 16., .1, 50.) == pytest.approx(16.5)
+    assert advance_playback(events, 16., .1, 50., slow_actions=True) == pytest.approx(16.1)
 
 
 def test_gaps_use_selected_speed_and_preserve_real_time_remainder():
     events = [dict(type='Measure', start=10., end=15.)]
-    assert advance_playback(events, 0., .3, 50.) == pytest.approx(10.5)
+    assert advance_playback(events, 0., .3, 50., slow_actions=True) == pytest.approx(10.1)
 
 
 def test_single_tick_and_many_frames_advance_equally_without_mutating_logs(events):

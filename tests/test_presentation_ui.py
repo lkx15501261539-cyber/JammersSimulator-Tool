@@ -70,9 +70,7 @@ def test_view_toggles_preserve_time_observer_state_and_run_data(window):
             assert window.map.state == state_before
             assert window.run_data == before
             assert {key: value.text() for key, value in window.values.items()} == metrics_before
-    window.slow.setChecked(False)
     window.speed.setCurrentText('50x')
-    window.slow.setChecked(True)
     assert project(window.run_data['events'], window.t) == state_before
     assert window.run_data == before
 
