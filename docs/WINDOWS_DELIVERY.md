@@ -1,11 +1,12 @@
-# Windows 统一交付包
+# Windows / Mac 统一交付包
 
-使用新交付包 `JammersLab_Q3v2_Q4_Windows.zip`。过去下载的旧包不会自动更新。
+使用新交付包 `JammersLab_Q3v2_Q4.zip`。过去下载的旧包不会自动更新。
 原始 `Baseline_v2.0_七点六边形.zip` 仅是模型交付，模拟器窗口和启动脚本在这份
 统一包中。仓库里的相同启动文件也可直接使用，见 `MODEL_LAUNCHERS.md`。
 
-完整解压后，在 `JammersLab_Q3v2_Q4_Windows` 文件夹中双击 `启动界面.bat`，
+完整解压后，在 `JammersLab_Q3v2_Q4` 文件夹中双击 `启动界面.bat`，
 默认进入 Q3 v2.0；`start_q3_v2.bat` 打开相同模型，`start_q4.bat` 打开 Q4。
+Mac 双击 `启动界面.command` 打开 Q3 v2.0，或 `start_q4.command` 打开 Q4，详见根目录 `Mac启动说明.txt`。
 首次请安装 Python 3.12（64 位）并联网。这是可运行的 Python 源码交付，
 不是免安装 EXE。启动文件必须与 `enhanced/`、`models/` 等目录放在一起。
 
@@ -17,13 +18,13 @@ Q3 v2 原 ZIP 和 Q4 源码始终内置。旧 v1 ZIP 和已经完成的 Q3 v2 �
 在模拟器仓库根目录执行（Python 3.10+ 标准库即可打包）：
 
 ```sh
-python tools/build_delivery.py --output ../JammersLab_Q3v2_Q4_Windows.zip
+python tools/build_delivery.py --output ../JammersLab_Q3v2_Q4.zip
 ```
 
 也可加入原始 v1 模型包和已经完成的 Q3 v2 场景：
 
 ```sh
-python tools/build_delivery.py --output ../JammersLab_Q3v2_Q4_Windows.zip --v1-archive "PATH/TO/Baseline_v1.0_两模型完整交付.zip" --demo-run runs/q3-v2-clustered-47
+python tools/build_delivery.py --output ../JammersLab_Q3v2_Q4.zip --v1-archive "PATH/TO/Baseline_v1.0_两模型完整交付.zip" --demo-run runs/q3-v2-clustered-47
 ```
 
 输出文件已存在时会报错，避免覆盖已有交付物；请改用新文件名。工具保留模型 ZIP

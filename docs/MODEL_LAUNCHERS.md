@@ -1,4 +1,6 @@
-# Windows 模型启动入口
+# 模型启动入口
+
+## Windows
 
 请先完整解压 `enhanced-mock` 仓库，安装 64 位 Python（推荐 3.12，脚本最低检查
 3.10），并在首次准备依赖时联网。在仓库文件夹中双击：
@@ -33,3 +35,49 @@ python -m enhanced gui --problem 4 --error-model worst_edge
 完整 Windows 交付包见 [交付说明](WINDOWS_DELIVERY.md)，包内保留“启动界面.bat”旧名称；过去下载的 ZIP 不会自动更新。
 
 Windows x64 的三个正常启动入口和 54 项模型/接口检查已通过，包含中文与空格路径。详见 [Windows 验证记录](WINDOWS_VALIDATION.md)。
+
+## macOS
+
+完整解压新版模拟器，并安装 macOS 版 64 位 Python 3.12（最低检查 3.10）。
+双击 `启动界面.command` 默认打开 Q3 七点六边形 Baseline 2.0；双击
+`start_q4.command` 打开 Q4 的 25 点 C/U 模型。两个入口共用环境准备逻辑。
+
+常规启动只使用模拟器目录内的 `.venv`，缺少时创建；检查依赖版本与导入后，
+只有缺失或版本不符时才联网安装。Q3 依照 `requirements-q3-v2.txt`，Q4 桌面
+仅需 `PySide6>=6.6,<7`。安装后会再校验一次，不兼容的已有环境不会自动删除。
+显式设置 `JAMMERS_PYTHON` 可选择已有 Python 环境（包括共享环境），缺失依赖
+也会安装到这个主动选择的环境；不会自动改用或修改父目录 `.venv`。
+
+在终端中使用已核对的源码：
+
+```sh
+./启动界面.command --check-only
+./start_q4.command --check-only
+JAMMERS_PYTHON="/完整路径/.venv/bin/python" ./start_q4.command
+./启动界面.command --replay "examples/q3-v2-demo"
+```
+
+`--check-only` 执行依赖准备、模型核验和 Qt 离屏窗口检查后退出，不等待按键。
+其他参数转交界面，目录及参数支持中文和空格。普通交互启动失败时保留错误和
+退出码并等待回车，非交互调用不会挂起。Python UTF-8 设置仅限启动器进程。
+
+本交付包含未签名的 Python 源码及 `.command` 文件，尚未提供签名、公证的
+`.app`。若提示“无法验证开发者／Apple 无法验证是否包含恶意软件”，先核对
+下载来源和文件，确认信任后可按 [Apple 官方说明](https://support.apple.com/zh-cn/102445)
+对该单个项目使用“系统设置 → 隐私与安全性 → 仍要打开”。这类提示既不能证明
+文件有恶意行为，也不能证明它安全。不要关闭 Gatekeeper 或批量解除隔离。
+“包含恶意软件”“将损坏电脑”及“文件已损坏”需要先停止并核对来源，不能按
+普通未验证开发者提示直接放行。
+
+`ModuleNotFoundError: No module named 'PySide6'` 是 Python 环境缺依赖的问题，
+新版入口会检查并补齐；它与 macOS 安全弹窗不同。过去下载的 ZIP 和旧版目录
+不会自动更新。更完整的使用说明见根目录 `Mac启动说明.txt`。
+
+## 不同文件夹与版本
+
+每个解压目录是一份独立模拟器副本，不会自动扫描别的版本文件夹，也不会因 GitHub 更新自动升级。
+建议固定使用最新完整交付包；它可在模型选择框中切换已经整合的 Q3 v1 六边形、Q3 v1 螺旋、Q3 v2 七点六边形及 Q4。
+Q3 v1 需要对应原始 ZIP（本次完整交付已附带）；界面用于模拟与回放，不是源码编辑器。新增模型需要先接入适配器后才会出现在列表。
+
+2026-09-12 Mac 更新验证：Q3 v2 和 Q4 的 `--check-only` 均已在当前 Mac 的 Python 3.12 / PySide6 6.11.2 环境成功构建窗口并校验模型；15 项交付测试通过。
+这不等于所有 macOS 版本均已测试，也不代表已经完成 Apple 签名或公证。

@@ -9,17 +9,19 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = 'JammersLab_Q3v2_Q4_Windows'
+PACKAGE = 'JammersLab_Q3v2_Q4'
 MANIFEST = 'DELIVERY_MANIFEST.json'
 V1_ARCHIVE = 'Baseline_v1.0_两模型完整交付.zip'
 V2_ARCHIVE = 'Baseline_v2.0_七点六边形.zip'
 # These files must also be included before their first Git commit.
 DELIVERY_FILES = {'tools/build_delivery.py', 'tests/test_delivery.py',
-                  'docs/WINDOWS_DELIVERY.md', 'Windows启动说明.txt'}
+                  'docs/WINDOWS_DELIVERY.md', 'Windows启动说明.txt',
+                  'start_q4.command', 'Mac启动说明.txt'}
 ROOT_FILES = {'README.md', 'ENHANCED.md', 'COMPATIBILITY.md', 'LICENSE',
               'cli.py', 'mcp_server.py', 'mock_simulator.py', 'simulator_client.py',
               'requirements.txt', 'requirements-enhanced.txt', 'requirements-q3-v2.txt',
               'start_q3_v2.bat', 'start_q4.bat', '启动界面.bat', '启动界面.command',
+              'start_q4.command', 'Mac启动说明.txt',
               'Windows启动说明.txt', '.gitattributes', '.gitignore'}
 SOURCE_DIRS = {'enhanced', 'assets', 'docs', 'examples', 'model_sources',
                'references', 'skills', 'tests', 'tools'}
@@ -34,7 +36,7 @@ REQUIRED = {'enhanced/__main__.py', 'enhanced/ui.py', 'enhanced/baseline.py',
             'enhanced/q4_adapter.py', 'model_sources/q4/q4.py',
             'model_sources/q4/cu.py', 'model_sources/q4/第一问.py',
             f'models/{V2_ARCHIVE}', 'requirements-q3-v2.txt',
-            'start_q3_v2.bat', 'start_q4.bat', '启动界面.bat'} | DELIVERY_FILES
+            'start_q3_v2.bat', 'start_q4.bat', '启动界面.bat', '启动界面.command'} | DELIVERY_FILES
 
 
 def _allowed(name):
