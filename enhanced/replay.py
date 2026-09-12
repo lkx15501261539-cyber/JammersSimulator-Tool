@@ -1,6 +1,7 @@
 """Pure replay projection: results appear only when an event completes."""
 import copy
 import json
+import math
 from pathlib import Path
 
 
@@ -21,10 +22,21 @@ def load_run(path):
 
 
 def project(events, t):
+    """Project observer state using virtual time alone.
+
+    ``animation`` describes the current operation, with input-only data in
+    ``active_event``. Results and effect timestamps become available only after
+    completion. Rebuilding these values on every call makes pause and seeking
+    independent of rendering frame rate and previously projected times.
+    """
     state = dict(time=t, position=[0., 0.], channel=1, status='idle', distance=0., measure_count=0,
                  switch_count=0, failed_clear_count=0, detected=set(), cleared=set(), trajectory=[[0., 0.]],
                  measurements=[], actions=[], localizations={}, clear_actions=[], candidates=[],
                  breakdown=dict(moving=0., measuring=0., switching=0., clear=0.))
+    animation = dict(phase=0., duration=0., elapsed=0., action_type='idle',
+                     action_channel=None, heading_deg=0., gait_phase=0.,
+                     last_measure_time=None, last_clear_time=None, latest_clear=None,
+                     latest_localization_time=None)
     for e in events:
         if e['start'] > t:
             break
@@ -42,14 +54,32 @@ def project(events, t):
             state['position'] = [a+(b-a)*ratio for a,b in zip(d['origin'], d['destination'])]
             state['distance'] += d['distance']*ratio
             state['trajectory'].append(state['position'][:])
+            dx, dy = (b-a for a, b in zip(d['origin'], d['destination']))
+            if dx or dy:
+                animation['heading_deg'] = math.degrees(math.atan2(dy, dx)) % 360
         if kind == 'Clear' and not complete:
             state['active_clear'] = dict(d, result='pending')
         if not complete:
+            if key:
+                animation.update(phase=elapsed/duration if duration else 1., duration=duration,
+                                 elapsed=elapsed, action_type=kind,
+                                 action_channel=d.get('channel', state['channel']))
+                # Whitelist operation inputs: copying the complete event here
+                # would disclose a future bearing or clear result to the UI.
+                input_keys = {
+                    'Move': ('origin', 'destination', 'distance'),
+                    'ChannelSwitch': ('previous', 'channel'),
+                    'Measure': ('position', 'channel'),
+                    'Clear': ('position', 'channel', 'radius'),
+                }[kind]
+                state['active_event'] = dict(type=kind, start=e['start'], end=e['end'],
+                                            data={k: copy.deepcopy(d[k]) for k in input_keys if k in d})
             break
         if kind == 'ChannelSwitch':
             state['channel'] = d['channel']
             state['switch_count'] += 1
         elif kind == 'Measure':
+            animation['last_measure_time'] = e['end']
             state['measure_count'] += 1
             state['actions'].append(d)
             if d['result'] in ('direction', 'near'):
@@ -57,6 +87,8 @@ def project(events, t):
             if d['result'] == 'direction':
                 state['measurements'].append(d)
         elif kind == 'Clear':
+            animation['last_clear_time'] = e['end']
+            animation['latest_clear'] = copy.deepcopy(d)
             state['actions'].append(d)
             state['clear_actions'].append(d)
             if d['result'] == 'success':
@@ -64,11 +96,17 @@ def project(events, t):
             else:
                 state['failed_clear_count'] += 1
         elif kind == 'LocalizationUpdate':
+            animation['latest_localization_time'] = e['end']
             state['localizations'][d['channel']] = d
         elif kind == 'CandidatePoints':
             state['candidates'] = d['points']
         elif kind == 'MissionEnd':
             state['status'] = 'mission ended'
+    # A fixed stride length keeps foot placement stable when paused or scrubbed.
+    animation['gait_phase'] = (state['distance']/2.8) % 1.
+    state['animation'] = animation
+    state['heading_deg'] = animation['heading_deg']
+    state['action_phase'] = animation['phase']
     return state
 
 

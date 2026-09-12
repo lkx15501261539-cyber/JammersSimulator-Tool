@@ -74,7 +74,7 @@ def test_baseline_button_dispatches_selected_original_archive(tmp_path,monkeypat
         progress(dict(phase='running',action_count=2,virtual_time_s=10.))
         return sample_run('incomplete_unresolved')
     monkeypatch.setattr(baseline,'run_baseline',run)
-    window=Window(ScenarioConfig(),DEFAULT_Q1)
+    window=Window(ScenarioConfig(error_model='baseline_fixed_field'),DEFAULT_Q1)
     window.show(); window.timer.stop(); app.processEvents()
     errors=[]; monkeypatch.setattr(window,'show_error',errors.append)
     assert window.model.currentData()=='hexagon_v1'

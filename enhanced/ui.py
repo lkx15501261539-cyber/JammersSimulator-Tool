@@ -4,8 +4,8 @@ from datetime import datetime
 import math
 from pathlib import Path
 import time
-from PySide6.QtCore import Qt, QTimer, QThread, Signal, QPointF
-from PySide6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath, QPolygonF, QPalette
+from PySide6.QtCore import Qt, QTimer, QThread, Signal, QPointF, QUrl
+from PySide6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath, QPolygonF, QPalette, QDesktopServices, QShortcut, QKeySequence
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGraphicsView, QGraphicsScene, QPushButton, QComboBox, QSpinBox, QLabel, QSlider,
     QCheckBox, QFileDialog, QMessageBox, QSplitter, QFormLayout, QGroupBox, QScrollArea,
@@ -14,132 +14,8 @@ from .world import ScenarioConfig, SCENARIOS
 from .replay import project, load_run
 
 
-def pen(color, width=1):
-    p = QPen(QColor(color), width)
-    p.setCosmetic(True)
-    return p
-
-
-def action_range(indices):
-    """Compact consecutive sequence numbers without merging nearby positions."""
-    ranges=[]
-    first=last=indices[0]
-    for index in indices[1:]:
-        if index==last+1:
-            last=index
-        else:
-            ranges.append(str(first) if first==last else f'{first}–{last}')
-            first=last=index
-    ranges.append(str(first) if first==last else f'{first}–{last}')
-    text=', '.join(ranges)
-    return text if len(text)<=28 else f'{indices[0]}…{indices[-1]} ({len(indices)} 次)'
-
-
-class MapView(QGraphicsView):
-    def __init__(self):
-        super().__init__()
-        self.setScene(QGraphicsScene(self))
-        self.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.setBackgroundBrush(QColor('#101c29'))
-        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-        self.setSceneRect(-2000, -2000, 4000, 4000)
-        self.fitted = False
-    def showEvent(self, e):
-        super().showEvent(e)
-        if not self.fitted:
-            self.fitInView(self.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
-            self.fitted = True
-    def wheelEvent(self, e):
-        factor = 1.15 if e.angleDelta().y() > 0 else 1/1.15
-        self.scale(factor, factor)
-    def reset_view(self):
-        self.fitInView(self.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
-    def draw(self, state, sources, truth, radii):
-        scene = self.scene()
-        scene.clear()
-        def line(a, b, color, width=1):
-            return scene.addLine(a[0], -a[1], b[0], -b[1], pen(color, width))
-        def circle(p, r, color, fill=None, width=1):
-            return scene.addEllipse(p[0]-r, -p[1]-r, 2*r, 2*r, pen(color, width),
-                                    QBrush(QColor(fill)) if fill else QBrush(Qt.BrushStyle.NoBrush))
-        def label(p, text, color='#9bb0c3', offset=(0,0)):
-            item = scene.addText(text)
-            item.setDefaultTextColor(QColor(color))
-            item.setFlag(item.GraphicsItemFlag.ItemIgnoresTransformations)
-            units_per_pixel=1/max(abs(self.transform().m11()),1e-6)
-            item.setPos(p[0]+offset[0]*units_per_pixel,-p[1]+offset[1]*units_per_pixel)
-            return item
-        for v in range(-1500, 1501, 500):
-            line((v,-1800),(v,1800),'#213348')
-            line((-1800,v),(1800,v),'#213348')
-        circle((0,0),1800,'#7892ab',width=2)
-        line((-70,0),(70,0),'#b4c8d9',2)
-        line((0,-70),(0,70),'#b4c8d9',2)
-        label((0,0),'O · 0,0',offset=(-70,-20))
-        label((-1700,1750),'ARENA R = 1800 m')
-        label((1450,-1750),'E →   N ↑')
-        for source in sources:
-            p = source['x'], source['y']
-            color = '#526875' if source['channel'] in state['cleared'] else '#eaaf68'
-            if radii:
-                circle(p,source['recv_radius'],'#39463e')
-            if truth:
-                circle(p,22,color,color)
-                label(p,f"G{source['channel']}"+(' ✓' if source['channel'] in state['cleared'] else ''),color,offset=(-50,-17))
-        path = QPainterPath(QPointF(0,0))
-        for x,y in state['trajectory']:
-            path.lineTo(x,-y)
-        scene.addPath(path,pen('#51c6df',2))
-        channel = state['channel']
-        for d in state['measurements']:
-            if d['channel'] != channel: continue
-            x,y = d['position']
-            angle = math.radians(d['svd_deg'])
-            rays = [(x+4000*math.cos(angle+sign*math.pi/180),y+4000*math.sin(angle+sign*math.pi/180)) for sign in (-1,1)]
-            polygon = QPolygonF([QPointF(x,-y),*(QPointF(a,-b) for a,b in rays)])
-            scene.addPolygon(polygon,pen('#576045'),QBrush(QColor(205,195,87,22)))
-            line((x,y),(x+4000*math.cos(angle),y+4000*math.sin(angle)),'#aa9d58')
-        loc = state['localizations'].get(channel)
-        if loc:
-            vertices = loc['vertices']
-            if len(vertices) >= 3:
-                scene.addPolygon(QPolygonF([QPointF(x,-y) for x,y in vertices]),pen('#b29bf3',2),QBrush(QColor(170,139,238,65)))
-            elif len(vertices) == 2:
-                line(*vertices,'#b29bf3',3)
-            elif vertices:
-                circle(vertices[0],7,'#b29bf3','#b29bf3')
-            if loc['farthest_pair']:
-                line(*loc['farthest_pair'],'#e4c9ff',3)
-            if loc['center'] is not None and loc['radius'] is not None:
-                circle(loc['center'], max(.1,loc['radius']),'#b29bf3',width=2)
-        action_groups={}
-        for index,d in enumerate(state['actions'],1):
-            action_groups.setdefault(tuple(d['position']),[]).append((index,d))
-        for position,actions in action_groups.items():
-            marker=circle(position,8,'#72bfd0','#72bfd0')
-            item=label(position,action_range([index for index,_ in actions]),offset=(6,2))
-            details=[f'位置 ({position[0]:.6f}, {position[1]:.6f}) m']
-            for index,d in actions:
-                angle=f" · 示向 {d['svd_deg']:.2f}°" if d.get('svd_deg') is not None else ''
-                details.append(f"#{index} · 频道 {d['channel']} · {d['result']}{angle}")
-            marker.setToolTip('\n'.join(details)); item.setToolTip('\n'.join(details))
-        clears = state['clear_actions'] + ([state['active_clear']] if 'active_clear' in state else [])
-        for d in clears:
-            color = '#65dfa4' if d['result']=='success' else '#ff7f7f' if d['result']=='no_target_in_range' else '#eeeeaa'
-            circle(d['position'],20,color,width=3)
-            label(d['position'],d['result'],color,offset=(6,-17))
-        for p in state['candidates']:
-            circle(p,12,'#82afef')
-        p = state['position']
-        circle(p,30,'#effcff','#42b9d6',2)
-        # Four legs make a compact quadruped glyph at map scale.
-        for dx in (-18,18):
-            for dy in (-1,1):
-                line((p[0]+dx,p[1]+dy*15),(p[0]+dx*1.5,p[1]+dy*45),'#dbf6ff',2)
-        if state['status'] == 'measuring':
-            a = state['time']*math.tau/2
-            line(p,(p[0]+110*math.cos(a),p[1]+110*math.sin(a)),'#f1da6b',3)
-        label(p,state['status'],'#ecf7ff',offset=(10,-30))
+from .map_view import MapView, action_range
+from .playback import advance_playback
 
 
 class SimulationWorker(QThread):
@@ -177,12 +53,12 @@ class Window(QMainWindow):
         self.q1, self.run_data, self.t, self.playing, self.worker = q1,None,0.,False,None
         self.config, self._close_when_finished = config,False
         self.setWindowTitle('Jammers Lab · Baseline 1.0 探索仿真')
-        self.resize(1350,900)
+        self.resize(1460,940)
         self.setMinimumSize(1050,700)
         root = QWidget()
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
-        title = QLabel('JAMMERS LAB    /    探索与定位仿真')
+        title = QLabel('JAMMERS LAB   /   自主探索控制台')
         title.setStyleSheet('font-size:22px;font-weight:600;padding:8px')
         layout.addWidget(title)
         model_row = QHBoxLayout()
@@ -204,7 +80,7 @@ class Window(QMainWindow):
         self.scenario = QComboBox(); self.scenario.addItems(SCENARIOS); self.scenario.setCurrentText(config.scenario)
         self.seed = QSpinBox(); self.seed.setRange(0,2147483647); self.seed.setValue(config.seed)
         self.error = QComboBox(); self.error.addItems(['baseline_fixed_field','deterministic_hash_fixed','worst_edge'])
-        self.error.setCurrentText('baseline_fixed_field')
+        self.error.setCurrentText(config.error_model)
         self.error.setToolTip('baseline_fixed_field：交付模型原始固定误差场；其余选项用于压力测试。')
         self.new = QPushButton('▶ 开始模拟')
         self.new.setStyleSheet('QPushButton { background:#176785; color:white; font-weight:600; } QPushButton:disabled { background:#8397a0; }')
@@ -227,21 +103,30 @@ class Window(QMainWindow):
         self.truth = QCheckBox('Ground Truth 源'); self.truth.setChecked(True)
         self.radii = QCheckBox('接收半径（真值）')
         self.truth.toggled.connect(self.render); self.radii.toggled.connect(self.render)
-        reset = QPushButton('地图复位'); reset.clicked.connect(lambda: self.map.reset_view())
+        reset = QPushButton('全域视角'); reset.clicked.connect(self.reset_camera)
+        self.follow = QCheckBox('跟随机器狗')
+        self.follow.toggled.connect(lambda checked:self.map.set_follow(checked))
+        self.detail = QCheckBox('近景画面'); self.detail.setChecked(True)
+        self.detail.toggled.connect(lambda checked:self.map.set_closeup(checked))
+        self.labels = QCheckBox('测点编号')
+        self.labels.toggled.connect(lambda checked:self.map.set_annotations(checked))
         toggles.addWidget(self.truth); toggles.addWidget(self.radii)
-        toggles.addWidget(QLabel('青色：轨迹   黄色：示向 ±1°   紫色：定位区域 / 直径圆'))
+        toggles.addWidget(self.follow); toggles.addWidget(self.detail); toggles.addWidget(self.labels)
         toggles.addStretch(); toggles.addWidget(reset)
         layout.addLayout(toggles)
         splitter = QSplitter()
         self.map = MapView(); splitter.addWidget(self.map)
         panel = QWidget(); side = QVBoxLayout(panel)
-        group = QGroupBox('MISSION OBSERVER'); form = QFormLayout(group)
+        group = QGroupBox('任务遥测  /  TELEMETRY'); form = QFormLayout(group)
         self.values = {}
         for key in ['Virtual Time','Position','Current Channel','Detected','Cleared','Distance','Measure Count',
                     'Switch Count','Failed Clear Count','State','Measurements','Region','Diameter','Circle covers',
                     'Moving','Measuring','Switching','Clear time']:
             value = QLabel('—'); value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            self.values[key] = value; form.addRow(key,value)
+            self.values[key] = value
+            names={'Virtual Time':'虚拟时间','Position':'实时坐标','Current Channel':'当前频道','Detected':'已发现源','Cleared':'清除进度','Distance':'累计行程','Measure Count':'测量次数','Switch Count':'切频次数','Failed Clear Count':'清除失败','State':'动作状态','Measurements':'当前频道测向数','Region':'定位区域','Diameter':'区域直径','Circle covers':'直径圆覆盖','Moving':'行进用时','Measuring':'测量用时','Switching':'切频用时','Clear time':'清除用时'}
+            if key in ('Virtual Time','Cleared'):value.setStyleSheet('font-size:18px;font-weight:700;color:#176785;')
+            form.addRow(names.get(key,key),value)
         side.addWidget(group)
         channel_group = QGroupBox('CHANNELS · ? 未知 / D 已检测 / ✓ 已清除')
         channel_layout = QVBoxLayout(channel_group)
@@ -259,18 +144,46 @@ class Window(QMainWindow):
         controls = QHBoxLayout()
         self.play = QPushButton('▶ 播放'); self.play.clicked.connect(self.toggle_play)
         self.step_button = QPushButton('单步 →'); self.step_button.clicked.connect(self.step)
-        self.speed = QComboBox(); self.speed.addItems(['0.5x','1x','2x','5x','10x','20x','50x']); self.speed.setCurrentText('10x')
+        self.speed = QComboBox(); self.speed.addItems(['0.5x','1x','2x','5x','10x','20x','50x']); self.speed.setCurrentText('20x')
+        self.slow = QCheckBox('动作慢放'); self.slow.setChecked(True)
+        self.slow.setToolTip('行进按所选倍速；测量、切频、清除最高 5x 播放。只改变观看节奏，虚拟时间与模型结果不变。')
         self.clock = QLabel('0.0 / 0.0 s')
         for widget in (self.play,self.step_button,QLabel('速度'),self.speed,self.clock): controls.addWidget(widget)
-        controls.addStretch(); layout.addLayout(controls)
+        controls.addWidget(self.slow); controls.addStretch()
+        self.open_run = QPushButton('本局日志'); self.open_run.clicked.connect(self.open_run_directory)
+        self.export = QPushButton('导出统计'); self.export.clicked.connect(self.export_metrics)
+        self.screenshot = QPushButton('保存画面'); self.screenshot.clicked.connect(self.save_screenshot)
+        for button in (self.open_run,self.export,self.screenshot):controls.addWidget(button)
+        layout.addLayout(controls)
+        QShortcut(QKeySequence('Space'),self,activated=self.toggle_play)
+        QShortcut(QKeySequence('Right'),self,activated=self.step)
         self.model.currentIndexChanged.connect(self.update_model_controls)
         self.update_model_controls()
         self.set_busy(False)
         self.statusBar().showMessage('选择模型与场景，点击“开始模拟”。计算完成后自动播放完整轨迹。')
         self.last_tick = time.monotonic()
         self.timer = QTimer(self); self.timer.timeout.connect(self.tick); self.timer.start(33)
-        if replay: self.set_run(load_run(replay))
+        if replay:
+            run=load_run(replay);run['directory']=str(Path(replay).resolve());self.set_run(run)
         else: self.map.draw(project([],0),[],False,False)
+    def reset_camera(self):
+        self.follow.setChecked(False); self.map.reset_view()
+    def open_run_directory(self):
+        if self.run_data and self.run_data.get('directory'):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(self.run_data['directory']))
+    def export_metrics(self):
+        if not self.run_data:return
+        path,_=QFileDialog.getSaveFileName(self,'导出本局统计','mission-metrics.csv','CSV (*.csv)')
+        if path:
+            from .exports import write_metrics_csv
+            try:
+                write_metrics_csv(self.run_data,path);self.statusBar().showMessage(f'统计已保存：{path}')
+            except OSError as exc:self.show_error(str(exc))
+    def save_screenshot(self):
+        path,_=QFileDialog.getSaveFileName(self,'保存当前仿真画面','mission-view.png','PNG (*.png)')
+        if path:
+            if self.grab().save(path):self.statusBar().showMessage(f'画面已保存：{path}')
+            else:self.show_error('无法保存到此位置。')
     def update_model_controls(self,*args):
         baseline = self.model.currentData() != 'q1_demo'
         busy = self.worker is not None and self.worker.isRunning()
@@ -303,7 +216,8 @@ class Window(QMainWindow):
         self.browse_archive.setEnabled(baseline and not busy)
         self.cancel.setEnabled(busy)
         self.progress_panel.setVisible(busy)
-        for widget in (self.play,self.step_button,self.timeline): widget.setEnabled(not busy and self.run_data is not None)
+        for widget in (self.play,self.step_button,self.timeline,self.export): widget.setEnabled(not busy and self.run_data is not None)
+        self.open_run.setEnabled(not busy and bool(self.run_data and self.run_data.get('directory')))
     def simulate(self):
         if self.worker is not None and self.worker.isRunning(): return
         model = self.model.currentData()
@@ -342,11 +256,14 @@ class Window(QMainWindow):
     def simulation_completed(self,run):
         if self._close_when_finished: return
         self.set_run(run)
-        self.toggle_play()
+        self._autoplay_pending=True
     def worker_finished(self):
         worker,self.worker = self.worker,None
         if worker is not None: worker.deleteLater()
         self.set_busy(False)
+        if getattr(self,'_autoplay_pending',False):
+            self._autoplay_pending=False
+            self.toggle_play()
         if self._close_when_finished: self.close()
     def show_error(self,text):
         self.statusBar().showMessage(text)
@@ -354,10 +271,15 @@ class Window(QMainWindow):
     def open_replay(self):
         path = QFileDialog.getExistingDirectory(self,'选择含 events.jsonl 的目录')
         if path:
-            try: self.set_run(load_run(path))
+            try:
+                run=load_run(path); run['directory']=str(Path(path).resolve()); self.set_run(run)
             except Exception as exc: self.show_error(str(exc))
     def set_run(self,run):
         self.run_data, self.t, self.playing = run,0.,False
+        self.map.label_signature=None
+        for key,control in (('scenario',self.scenario),('error_model',self.error)):
+            if run['metadata'].get(key):control.setCurrentText(run['metadata'][key])
+        if 'seed' in run['metadata']:self.seed.setValue(run['metadata']['seed'])
         self.play.setText('▶ 播放')
         model=run['metadata'].get('baseline_model')
         if model is None and 'q1' in str(run['metadata'].get('strategy','')).lower(): model='q1_demo'
@@ -373,13 +295,13 @@ class Window(QMainWindow):
     def duration(self):
         return self.run_data['events'][-1]['end'] if self.run_data and self.run_data['events'] else 0
     def toggle_play(self):
-        if not self.run_data: return
+        if not self.run_data or (self.worker and self.worker.isRunning()): return
         if self.t >= self.duration: self.t = 0
         self.playing = not self.playing
         self.last_tick = time.monotonic()
         self.play.setText('⏸ 暂停' if self.playing else '▶ 播放')
     def step(self):
-        if not self.run_data: return
+        if not self.run_data or (self.worker and self.worker.isRunning()): return
         self.playing=False; self.play.setText('▶ 播放')
         self.t = next((e['end'] for e in self.run_data['events'] if e['end'] > self.t+1e-9),self.duration)
         self.render()
@@ -389,7 +311,7 @@ class Window(QMainWindow):
     def tick(self):
         now = time.monotonic(); elapsed = now-self.last_tick; self.last_tick=now
         if self.playing:
-            self.t = min(self.duration,self.t+elapsed*float(self.speed.currentText()[:-1]))
+            self.t = advance_playback(self.run_data['events'],self.t,elapsed,float(self.speed.currentText()[:-1]),self.slow.isChecked())
             if self.t >= self.duration:
                 self.playing=False; self.play.setText('▶ 播放')
             self.render()
@@ -439,11 +361,15 @@ def configure_app(app):
     for role in ('WindowText','Text','ButtonText'):
         palette.setColor(QPalette.ColorGroup.Disabled,getattr(QPalette.ColorRole,role),QColor('#8392a0'))
     app.setPalette(palette)
-    app.setStyleSheet('QWidget { font-size: 12px; } QMainWindow { background: #edf1f5; } QGroupBox { font-weight:600; margin-top:10px; padding-top:12px; } QPushButton { padding:6px 10px; }')
+    app.setStyleSheet('QWidget { font-size:12px; } QMainWindow { background:#edf1f5; } QGroupBox { background:#f9fbfc; border:1px solid #d8e3e9; border-radius:8px; font-weight:600; margin-top:12px; padding:18px 10px 10px; } QGroupBox::title { subcontrol-origin:margin; left:12px; padding:0 5px; color:#31576b; } QPushButton { padding:7px 11px; border:1px solid #becfd9; border-radius:5px; background:#f9fcfd; } QPushButton:hover { border-color:#42899d; background:#e6f4f6; } QPushButton:disabled { color:#99a9b3; } QComboBox,QLineEdit,QSpinBox { min-height:25px; padding:2px 5px; } QScrollArea { border:0; } QSlider::groove:horizontal { background:#c5d7de; height:6px; border-radius:3px; } QSlider::sub-page:horizontal { background:#268f98; border-radius:3px; } QSlider::handle:horizontal { background:#fbffff; border:2px solid #268f98; width:12px; margin:-5px 0; border-radius:6px; }')
 
 
-def launch(config,q1,replay=None):
+def launch(config,q1,replay=None,model=None,archive=None):
     app = QApplication.instance() or QApplication([])
     configure_app(app)
-    window = Window(config,q1,replay); window.show()
+    window = Window(config,q1,replay)
+    if model is not None and replay is None:
+        window.model.setCurrentIndex(window.model.findData(model))
+    if archive is not None:window.archive.setText(str(archive))
+    window.show()
     app.exec()

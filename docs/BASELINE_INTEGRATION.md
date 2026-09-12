@@ -66,7 +66,8 @@ Replay 只读事件，模型代码和 ZIP 都不再需要。
 首次包含 Numba 编译约 20.8 秒，缓存后本机两次 GUI 运行约 3.1 秒；不保证其他
 电脑或更复杂场景具有相同耗时。
 
-完整测试：**31 passed**，无跳过。新增测试包括：
+历史接入阶段测试：**31 passed**，无跳过；这是动画升级前的接入验收记录，
+本轮动画核验见 [ANIMATION_ACCEPTANCE.md](ANIMATION_ACCEPTANCE.md)。当时新增测试包括：
 
 - 两模型 × 两个 seed，逐条对照原版 OfflineBackend 与增强 World 的 18 个请求；
   检查 near/clear/接收边界、同点误差、幂等、切频、clear 不切频及完整时间等式。
